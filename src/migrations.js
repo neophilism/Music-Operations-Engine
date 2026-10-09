@@ -28,6 +28,18 @@ export const migrations = [
     CREATE TABLE IF NOT EXISTS music_audit (
       id bigserial PRIMARY KEY,actor text NOT NULL,action text NOT NULL,label_ids text[] NOT NULL,
       details jsonb NOT NULL DEFAULT '{}'::jsonb,created_at timestamptz NOT NULL DEFAULT now());
+  `},
+  {version:2,sql:`
+    CREATE TABLE music_deliveries (
+      label_id text REFERENCES music_labels(id),platform text,delivery_id text,content_hash text NOT NULL,
+      accepted bigint NOT NULL DEFAULT 0,received_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(label_id,platform,delivery_id));
+    CREATE TABLE music_platform_events (
+      label_id text REFERENCES music_labels(id),platform text,external_id text,content_hash text NOT NULL,
+      received_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(label_id,platform,external_id));
+    CREATE TABLE music_shared_measurements (
+      source text,activity_id text,type text NOT NULL,quantity bigint NOT NULL,metrics jsonb NOT NULL,
+      PRIMARY KEY(source,activity_id));
+    CREATE INDEX music_deliveries_received_at ON music_deliveries(received_at);
   `}
 ];
 

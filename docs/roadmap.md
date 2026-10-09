@@ -19,7 +19,9 @@
 
 PR #2 also delivers scoped server credentials and an audit trail (part of milestone 2), initial catalog mappings (part of milestone 11), and complete snapshot reporting beyond 10k rows (part of milestone 12). Interactive accounts, collaborator rights, and materialized rollups remain planned; these partial milestones are not marked complete.
 
-PR #3 is the next work package: signed TrackZero and SceneSignal ingestion, replay-safe delivery storage, provider recording mappings, and label/family platform metrics. The producer apps currently contain specifications, so live connections require their later telemetry exporters.
+PR #3 implements the receiver contracts for milestones 8 and 9, producer SDK support from milestone 4, and signed/duplicate-safe atomic delivery from milestone 14. Source-side field verification, live telemetry producers, polling/reconciliation, secrets-vault infrastructure and async queue administration remain outstanding. Read `platform-contracts.md`, `producer-onboarding.md` and `implementation-status.md` for the boundaries and evidence.
+
+`roadmap.json` preserves the 15-item baseline and the added multi-label milestone. An implemented receiver contract is not a completed live integration.
 
 Every adapter reports provenance, event time, ingest time and source freshness. Never conflate money across currencies or represent estimated payouts as settled revenue.
 

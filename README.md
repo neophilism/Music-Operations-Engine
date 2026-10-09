@@ -15,3 +15,7 @@ Every fact belongs to one label. `GET /v1/scopes` supplies a menu of accessible 
 Amounts remain separated by currency. Label, source, and external ID identify repeat report rows. Exact large integer totals are returned as decimal strings. Financial facts come from authorized reports; stream counts do not imply revenue.
 
 Use scoped server-side credentials for readers and ingestion services. Read [label/family and catalog contracts](docs/label-scopes.md) and the [remaining roadmap](docs/roadmap.md). `ENGINE_API_KEY` remains a system-wide bootstrap key, with a minimum length of 32 characters. Interactive account authentication remains on the roadmap.
+
+TrackZero and SceneSignal have independent signed event endpoints and source-specific summaries. Reports include listening, verified speaker contribution, artist rewards, free Grooves, shared sessions, attendance, and complete-album commerce. The [platform contracts](docs/platform-contracts.md) and [producer onboarding](docs/producer-onboarding.md) describe how their backends connect. The producer SDK is available as `music-operations-engine/client`.
+
+The receiver contracts are implemented; the app repositories still need live telemetry producers. See [implementation evidence and production gaps](docs/implementation-status.md). Provider-specific consumer experiences remain in their own repositories.
