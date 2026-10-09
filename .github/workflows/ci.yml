@@ -1,5 +1,7 @@
 name: Test engine
 on: [push, pull_request]
+permissions:
+  contents: read
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -13,27 +15,21 @@ jobs:
       - run: npm run check
   postgres:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:17
-        env:
-          POSTGRES_USER: music
-          POSTGRES_PASSWORD: test-only-password
-          POSTGRES_DB: music_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-    env:
-      TEST_DATABASE_URL: postgresql://music:test-only-password@localhost:5432/music_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Start runner PostgreSQL
+        shell: bash
+        run: |
+          read -r PG_TEST_VERSION PG_TEST_CLUSTER PG_TEST_PORT _ < <(pg_lsclusters --no-header)
+          test -n "$PG_TEST_VERSION"
+          if ! pg_isready -h 127.0.0.1 -p "$PG_TEST_PORT"; then
+            sudo pg_ctlcluster "$PG_TEST_VERSION" "$PG_TEST_CLUSTER" start
+          fi
+          sudo -u postgres psql -p "$PG_TEST_PORT" -v ON_ERROR_STOP=1 -c "CREATE ROLE music LOGIN PASSWORD 'test-only-password';"
+          sudo -u postgres createdb -p "$PG_TEST_PORT" -O music music_test
+          echo "TEST_DATABASE_URL=postgresql://music:test-only-password@127.0.0.1:${PG_TEST_PORT}/music_test" >> "$GITHUB_ENV"
       - run: npm ci --no-audit --no-fund
       - run: npm test
-
