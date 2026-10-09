@@ -1,1 +1,13 @@
-# Music Operations Engine\n\nProvider-agnostic music-business ingestion and analytics backend. **No Unsealed Records branding or special cases in this repository.**\n\n## Run\n\nRequires Node.js 22+, Postgres, and an `ENGINE_API_KEY`. `npm install`, set `.env.example` values in environment, then `npm start`. `npm test` runs pure-domain tests. Server deliberately fails closed without the database or API key.\n\n`GET /health` is the unprivileged database probe. Authenticated endpoints require `Authorization: Bearer <ENGINE_API_KEY>`: `GET /v1/summary`, `GET /v1/sources`, `POST /v1/ingest`. Supply JSON `{ "source":"toolost", "facts":[{"externalId":"report-row-1","type":"sale","date":"2026-10-09","quantity":1,"amountMinor":499,"currency":"USD","artist":"Sample Artist","release":"Album"}] }`. CSV ingestion accepts `{ "source":"toolost", "csv":"externalId,type,date,quantity,amountMinor,currency,artist,release\\n..." }`.\n\nValues are integer minor currency units and remain grouped by currency. Source/externalId determines idempotent upserts. Financial facts must be sourced from authorized accounting reports; summaries do not infer payouts or earnings from stream counts. `summary.partial=true` means the 10k query limit was reached. This v0 endpoint is a bootstrap API, not final authentication, reporting precision, or scalable data warehouse. See `docs/roadmap.md`.\n
+# Music Operations Engine
+
+Provider-agnostic music-business ingestion and analytics backend. Label branding and the Command Center stay in their separate application repository.
+
+## Run
+
+Requires Node.js 22+, PostgreSQL, and an `ENGINE_API_KEY`. Install with `npm install`, configure the environment using `.env.example`, then run `npm start`. Run `npm test` and `npm run check` before publishing changes.
+
+`GET /health` probes the database. Authenticated endpoints are `GET /v1/summary`, `GET /v1/sources`, and `POST /v1/ingest`. Supply `Authorization: Bearer <ENGINE_API_KEY>` from a trusted server. Keep this ingestion credential on the server.
+
+Ingestion accepts JSON with a `source` and `facts` array. Each fact has `externalId`, `type`, `occurredAt` (or `date`), and optional integer `quantity`, `amountMinor`, `currency`, `artist`, `release`, and `track`. CSV uses those same column names, supplied as a JSON `csv` string.
+
+Amounts remain separated by currency. Source and external ID identify repeat report rows. Financial facts come from authorized reports; stream counts do not imply revenue. The foundation endpoint has a 10,000-record ceiling and reports `partial: true` when reached. The roadmap tracks the replacement reporting and authentication contracts.
