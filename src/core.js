@@ -53,6 +53,7 @@ function group(map,key,details,fact) {
   if (!map.has(key)) map.set(key,{...details,bucket:bucket()});
   add(map.get(key).bucket,fact);
 }
+function scopeKey(labelId,id,name) { return JSON.stringify([labelId,id ? 'id' : 'title',id || name]); }
 export function createSummary() {
   const total=bucket(),labels=new Map(),sources=new Map(),releases=new Map(),artists=new Map(),tracks=new Map(),daily=new Map();
   return {
@@ -61,9 +62,9 @@ export function createSummary() {
       const labelId=fact.labelId || 'default';
       group(labels,labelId,{labelId},fact);
       group(sources,fact.source,{source:fact.source},fact);
-      group(releases,labelId+':'+(fact.releaseId || fact.release || 'Unassigned'),{labelId,id:fact.releaseId || null,title:fact.release || 'Unassigned'},fact);
-      group(artists,labelId+':'+(fact.artistId || fact.artist),{labelId,id:fact.artistId || null,name:fact.artist},fact);
-      if (fact.trackId || fact.track) group(tracks,labelId+':'+(fact.trackId || fact.track),{labelId,id:fact.trackId || null,title:fact.track,releaseId:fact.releaseId},fact);
+      group(releases,scopeKey(labelId,fact.releaseId,fact.release || 'Unassigned'),{labelId,id:fact.releaseId || null,title:fact.release || 'Unassigned'},fact);
+      group(artists,scopeKey(labelId,fact.artistId,fact.artist),{labelId,id:fact.artistId || null,name:fact.artist},fact);
+      if (fact.trackId || fact.track) group(tracks,scopeKey(labelId,fact.trackId,fact.track),{labelId,id:fact.trackId || null,title:fact.track,releaseId:fact.releaseId},fact);
       group(daily,fact.occurredAt.slice(0,10),{date:fact.occurredAt.slice(0,10)},fact);
     },
     value() {
@@ -83,7 +84,7 @@ export function summarize(facts) {
   return summary.value();
 }
 export function parseCsv(csv) {
-  if(typeof csv!=="string"||csv.length>5_000_000)throw Error("CSV must be text under 5MB");
+  requireThat(typeof csv==='string' && Buffer.byteLength(csv) <= 5_000_000,'CSV must be text under 5 MB',400);
   const rows=[];let row=[],field="",quote=false;
   for(let i=0;i<csv.length;i++){
     const ch=csv[i];
@@ -92,10 +93,11 @@ export function parseCsv(csv) {
     else if(ch==="\n"){row.push(field.replace(/\r$/,""));rows.push(row);row=[];field=""}
     else field+=ch;
   }
-  if(quote)throw Error("Unclosed CSV quote");
+  requireThat(!quote,'Unclosed CSV quote',400);
   if(field||row.length){row.push(field);rows.push(row)}
   if(!rows.length)return [];
   const head=rows.shift().map(x=>x.trim());
-  return rows.filter(r=>r.some(x=>x.trim())).map((r,i)=>{if(r.length!==head.length)throw Error("CSV column mismatch row "+(i+2));return Object.fromEntries(head.map((key,j)=>[key,r[j]]))});
+  requireThat(head.every(Boolean) && new Set(head).size === head.length,'CSV headers must be present and unique',400);
+  return rows.filter(r=>r.some(x=>x.trim())).map((r,i)=>{requireThat(r.length===head.length,'CSV column mismatch row '+(i+2),400);return Object.fromEntries(head.map((key,j)=>[key,r[j]]))});
 }
 

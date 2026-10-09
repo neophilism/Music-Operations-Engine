@@ -13,6 +13,8 @@ test('Label identity, release identity, exact totals, and dates',()=>{
   assert.equal(result.counts.streams,'9007199254740994');
   assert.equal(Object.keys(result.byRelease).length,2);
   assert.equal(result.byLabel.alpha.counts.streams,'9007199254740993');
+  const separators=summarize([fact('a:b','left',{releaseId:'c',artistId:'c',trackId:'c'}),fact('a','right',{releaseId:'b:c',artistId:'b:c',trackId:'b:c'})]);
+  assert.equal(Object.keys(separators.byRelease).length,2);assert.equal(separators.artists.length,2);assert.equal(separators.tracks.length,2);
   assert.equal(timestamp('2026-10-09T23:00:00-04:00'),'2026-10-10T03:00:00.000Z');
   assert.throws(()=>timestamp('2026-02-30'));
   assert.throws(()=>loadCredentials({ENGINE_API_KEY:'short'}));
@@ -46,6 +48,8 @@ test('Catalog mappings stay label-scoped and reject conflicting identity atomica
   await assert.rejects(f.store.putCatalog({labelId:'alpha',id:'wrong',kind:'track',name:'Wrong',artistId:'missing',releaseId:'album'}));
   await assert.rejects(f.store.putCatalog({labelId:'alpha',id:'other',kind:'release',name:'Other',artistId:'artist',externalIds:[{source:'trackzero',externalId:'tz-album'}]}),e=>e.status===409);
   assert.equal((await f.store.catalog({labelIds:['alpha']})).length,3);
+  await f.store.putCatalog({labelId:'alpha',id:'second-artist',kind:'artist',name:'Second'});
+  await assert.rejects(f.store.putCatalog({labelId:'alpha',id:'album',kind:'release',name:'Same Album',artistId:'second-artist'}),e=>e.status===409);
   await assert.rejects(f.store.upsert([fact('alpha','bad',{trackId:'track',artistId:'wrong'})]));
   const records=await f.store.audit();assert.ok(records.some(r=>r.action==='catalog.put'));
 });

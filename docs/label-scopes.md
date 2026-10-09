@@ -38,4 +38,4 @@ Provider events resolve these mappings within their authorized label. They never
 
 The schema migrates older facts into a visible `default` label named **Unassigned legacy facts**. It does not guess their owner. The label/source/external-ID unique key preserves idempotency when older rows are reimported with the new key format.
 
-Run `npm test` for local PostgreSQL-engine checks through PGlite. CI also runs the same migrations, HTTP requests, catalog operations, legacy migration, and 10,001-record report against a PostgreSQL service.
+Run `npm test` for local PostgreSQL-engine checks through PGlite. CI also runs the same migrations, HTTP requests, catalog operations, legacy migration, and 10,001-record report against the hosted runner’s PostgreSQL service.

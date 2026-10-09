@@ -36,7 +36,7 @@ export async function createStore(pool) {
   async function insertFacts(client,facts) {
     const cache=new Map();
     async function item(labelId,id,kind) {
-      const key=labelId+':'+id;
+      const key=JSON.stringify([labelId,id]);
       if (!cache.has(key)) cache.set(key,(await client.query('SELECT '+catalogFields+' FROM music_catalog WHERE label_id=$1 AND id=$2',[labelId,id])).rows[0]);
       const found=cache.get(key);
       requireThat(found && found.kind === kind,'Unknown '+kind+' reference in the fact label');
@@ -99,8 +99,9 @@ GROUP BY l.id,l.name ORDER BY l.name,l.id`,[labelIds])).rows;
         }
         const result=await c.query(`INSERT INTO music_catalog(label_id,id,kind,name,artist_id,release_id,isrc,upc) VALUES($1,$2,$3,$4,$5,$6,$7,$8)
 ON CONFLICT(label_id,id) DO UPDATE SET name=EXCLUDED.name,artist_id=EXCLUDED.artist_id,release_id=EXCLUDED.release_id,isrc=EXCLUDED.isrc,upc=EXCLUDED.upc
-WHERE music_catalog.kind=EXCLUDED.kind RETURNING id`,[item.labelId,item.id,item.kind,item.name,item.artistId,item.releaseId,item.isrc,item.upc]);
-        requireThat(result.rows.length,'Catalog identity cannot change kind',409);
+WHERE music_catalog.kind=EXCLUDED.kind AND music_catalog.artist_id IS NOT DISTINCT FROM EXCLUDED.artist_id
+AND music_catalog.release_id IS NOT DISTINCT FROM EXCLUDED.release_id RETURNING id`,[item.labelId,item.id,item.kind,item.name,item.artistId,item.releaseId,item.isrc,item.upc]);
+        requireThat(result.rows.length,'Catalog kind and parent identity cannot change',409);
         for (const m of item.externalIds) {
           const mapped=await c.query(`INSERT INTO music_external_ids(label_id,source,kind,external_id,catalog_id) VALUES($1,$2,$3,$4,$5)
 ON CONFLICT(label_id,source,kind,external_id) DO UPDATE SET catalog_id=EXCLUDED.catalog_id
