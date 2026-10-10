@@ -1,47 +1,90 @@
-import {createHash} from "node:crypto";
-export const TYPES = ["sale","stream","play","attendance","event","refund","royalty"];
-export function normalizeFact(raw, source="manual") {
-  if (!raw || typeof raw !== "object") throw Error("Fact must be an object");
-  const type=String(raw.type||"").toLowerCase();
-  if(!TYPES.includes(type)) throw Error("Invalid fact type");
-  const occurredAt=new Date(raw.occurredAt||raw.date);
-  if(Number.isNaN(occurredAt.getTime())) throw Error("Valid date required");
-  const quantity=Number(raw.quantity??1);
-  const amountMinor=Number(raw.amountMinor??0);
-  if(!Number.isSafeInteger(quantity)||quantity<0||!Number.isSafeInteger(amountMinor)) throw Error("Integer quantities and minor-unit amounts required");
-  const currency=String(raw.currency||"USD").toUpperCase();
-  if(!/^[A-Z]{3}$/.test(currency)) throw Error("Invalid currency");
-  const externalId=String(raw.externalId||"").trim();
-  if(!externalId||externalId.length>256) throw Error("externalId required (max 256)");
-  const result={source:String(source).slice(0,80),externalId,type,occurredAt:occurredAt.toISOString(),quantity,amountMinor,currency,artist:String(raw.artist||"Unknown").slice(0,200),release:String(raw.release||"").slice(0,200),track:String(raw.track||"").slice(0,200),channel:String(raw.channel||"").slice(0,100),territory:String(raw.territory||"").slice(0,8),metadata:raw.metadata&&typeof raw.metadata==="object"&&!Array.isArray(raw.metadata)?raw.metadata:{}};
-  result.id=createHash("sha256").update(result.source+"\0"+result.externalId).digest("hex");
+import {createHash} from 'node:crypto';
+import {requireThat} from './errors.js';
+import {identifier, integer, exact, timestamp} from './validation.js';
+
+export const TYPES = ['sale','stream','play','attendance','event','refund','royalty'];
+export function normalizeFact(raw, source='manual', context={}) {
+  requireThat(raw && typeof raw === 'object' && !Array.isArray(raw),'Fact must be an object');
+  source=identifier(source,'source');
+  const labelId=identifier(context.labelId || raw.labelId || 'default','labelId');
+  requireThat(!raw.labelId || raw.labelId === labelId,'Fact label must match its ingestion scope');
+  const type=String(raw.type || '').toLowerCase();
+  requireThat(TYPES.includes(type),'Invalid fact type');
+  const occurredAt=timestamp(raw.occurredAt || raw.date);
+  const quantity=integer(raw.quantity ?? 1,'quantity');
+  const amountMinor=integer(raw.amountMinor ?? 0,'amountMinor',{signed:type === 'royalty'});
+  requireThat(['sale','refund','royalty'].includes(type) || amountMinor === 0n,'Only financial facts can carry monetary amounts');
+  const currency=String(raw.currency || 'USD').toUpperCase();
+  requireThat(/^[A-Z]{3}$/.test(currency),'Invalid currency');
+  const externalId=String(raw.externalId || '').trim();
+  requireThat(externalId.length > 0 && externalId.length <= 256 && !externalId.includes('\0'),'externalId required (max 256 characters, no NUL)');
+  const names={artist:'Unknown',release:'',track:'',channel:'',territory:''};
+  for (const [key,fallback] of Object.entries(names)) {
+    names[key]=String(raw[key] ?? fallback);
+    requireThat(names[key].length <= (key === 'territory' ? 8 : 200),`${key} is too long`);
+  }
+  const metadata=raw.metadata ?? {};
+  requireThat(metadata && typeof metadata === 'object' && !Array.isArray(metadata),'metadata must be an object');
+  requireThat(Buffer.byteLength(JSON.stringify(metadata)) <= 16384,'metadata exceeds 16 KiB');
+  const result={source,labelId,externalId,type,occurredAt,quantity:exact(quantity),amountMinor:exact(amountMinor),currency,...names,
+    artistId:raw.artistId ? identifier(raw.artistId,'artistId') : null,
+    releaseId:raw.releaseId ? identifier(raw.releaseId,'releaseId') : null,
+    trackId:raw.trackId ? identifier(raw.trackId,'trackId') : null,metadata};
+  result.id=createHash('sha256').update(labelId+'\0'+source+'\0'+externalId).digest('hex');
   return result;
 }
-export function summarize(facts) {
-  const currencies={},bySource={},byRelease={},counts={sales:0,streams:0,plays:0,attendees:0,events:0,royalties:0},daily={};
-  for(const fact of facts){
-    const qty=Number(fact.quantity), amount=Number(fact.amountMinor);
-    if(fact.type==="sale")counts.sales+=qty;
-    if(fact.type==="stream")counts.streams+=qty;
-    if(fact.type==="play")counts.plays+=qty;
-    if(fact.type==="attendance")counts.attendees+=qty;
-    if(fact.type==="event")counts.events+=qty;
-    if(fact.type==="royalty")counts.royalties+=qty;
-    const money=currencies[fact.currency]??={salesMinor:0,refundsMinor:0,royaltiesMinor:0};
-    if(fact.type==="sale")money.salesMinor+=amount;
-    if(fact.type==="refund")money.refundsMinor+=amount;
-    if(fact.type==="royalty")money.royaltiesMinor+=amount;
-    const src=bySource[fact.source]??={facts:0,streams:0,sales:0};
-    src.facts++;if(fact.type==="stream")src.streams+=qty;if(fact.type==="sale")src.sales+=qty;
-    const release=byRelease[fact.release||"Unassigned"]??={sales:0,streams:0,plays:0};
-    if(fact.type==="sale")release.sales+=qty;if(fact.type==="stream")release.streams+=qty;if(fact.type==="play")release.plays+=qty;
-    const day=fact.occurredAt.slice(0,10);const date=daily[day]??={date:day,sales:0,streams:0,plays:0};
-    if(fact.type==="sale")date.sales+=qty;if(fact.type==="stream")date.streams+=qty;if(fact.type==="play")date.plays+=qty;
+const countKeys=['sales','streams','plays','attendees','events','royalties'];
+const typeCounts={sale:'sales',stream:'streams',play:'plays',attendance:'attendees',event:'events',royalty:'royalties'};
+function bucket() { return {counts:Object.fromEntries(countKeys.map(k=>[k,0n])),currencies:new Map(),factCount:0n}; }
+function add(bucket,fact) {
+  bucket.factCount++;
+  const key=typeCounts[fact.type];
+  if (key) bucket.counts[key]+=BigInt(fact.quantity);
+  if (['sale','refund','royalty'].includes(fact.type)) {
+    if (!bucket.currencies.has(fact.currency)) bucket.currencies.set(fact.currency,{salesMinor:0n,refundsMinor:0n,royaltiesMinor:0n});
+    bucket.currencies.get(fact.currency)[{sale:'salesMinor',refund:'refundsMinor',royalty:'royaltiesMinor'}[fact.type]]+=BigInt(fact.amountMinor);
   }
-  return {counts,currencies,bySource,byRelease,daily:Object.values(daily).sort((a,b)=>a.date.localeCompare(b.date)),factCount:facts.length};
+}
+function publicBucket(b) {
+  return {counts:Object.fromEntries(Object.entries(b.counts).map(([k,v])=>[k,exact(v)])),
+    currencies:Object.fromEntries([...b.currencies].map(([k,v])=>[k,Object.fromEntries(Object.entries(v).map(([key,n])=>[key,exact(n)]))])),factCount:exact(b.factCount)};
+}
+function group(map,key,details,fact) {
+  if (!map.has(key)) map.set(key,{...details,bucket:bucket()});
+  add(map.get(key).bucket,fact);
+}
+function scopeKey(labelId,id,name) { return JSON.stringify([labelId,id ? 'id' : 'title',id || name]); }
+export function createSummary() {
+  const total=bucket(),labels=new Map(),sources=new Map(),releases=new Map(),artists=new Map(),tracks=new Map(),daily=new Map();
+  return {
+    add(fact) {
+      add(total,fact);
+      const labelId=fact.labelId || 'default';
+      group(labels,labelId,{labelId},fact);
+      group(sources,fact.source,{source:fact.source},fact);
+      group(releases,scopeKey(labelId,fact.releaseId,fact.release || 'Unassigned'),{labelId,id:fact.releaseId || null,title:fact.release || 'Unassigned'},fact);
+      group(artists,scopeKey(labelId,fact.artistId,fact.artist),{labelId,id:fact.artistId || null,name:fact.artist},fact);
+      if (fact.trackId || fact.track) group(tracks,scopeKey(labelId,fact.trackId,fact.track),{labelId,id:fact.trackId || null,title:fact.track,releaseId:fact.releaseId},fact);
+      group(daily,fact.occurredAt.slice(0,10),{date:fact.occurredAt.slice(0,10)},fact);
+    },
+    value() {
+      const listing=m=>[...m.values()].map(({bucket:b,...details})=>({...details,...publicBucket(b)}));
+      return {...publicBucket(total),
+        byLabel:Object.fromEntries(listing(labels).map(l=>[l.labelId,l])),
+        bySource:Object.fromEntries(listing(sources).map(s=>[s.source,{...s,facts:s.factCount,streams:s.counts.streams,sales:s.counts.sales}])),
+        byRelease:Object.fromEntries([...releases].map(([key,{bucket:b,...r}])=>[key,{...r,...publicBucket(b),sales:exact(b.counts.sales),streams:exact(b.counts.streams),plays:exact(b.counts.plays)}])),
+        artists:listing(artists),tracks:listing(tracks),
+        daily:listing(daily).sort((a,b)=>a.date.localeCompare(b.date)).map(d=>({...d,sales:d.counts.sales,streams:d.counts.streams,plays:d.counts.plays}))};
+    }
+  };
+}
+export function summarize(facts) {
+  const summary=createSummary();
+  for (const fact of facts) summary.add(fact);
+  return summary.value();
 }
 export function parseCsv(csv) {
-  if(typeof csv!=="string"||csv.length>5_000_000)throw Error("CSV must be text under 5MB");
+  requireThat(typeof csv==='string' && Buffer.byteLength(csv) <= 5_000_000,'CSV must be text under 5 MB',400);
   const rows=[];let row=[],field="",quote=false;
   for(let i=0;i<csv.length;i++){
     const ch=csv[i];
@@ -50,9 +93,11 @@ export function parseCsv(csv) {
     else if(ch==="\n"){row.push(field.replace(/\r$/,""));rows.push(row);row=[];field=""}
     else field+=ch;
   }
-  if(quote)throw Error("Unclosed CSV quote");
+  requireThat(!quote,'Unclosed CSV quote',400);
   if(field||row.length){row.push(field);rows.push(row)}
   if(!rows.length)return [];
   const head=rows.shift().map(x=>x.trim());
-  return rows.filter(r=>r.some(x=>x.trim())).map((r,i)=>{if(r.length!==head.length)throw Error("CSV column mismatch row "+(i+2));return Object.fromEntries(head.map((key,j)=>[key,r[j]]))});
+  requireThat(head.every(Boolean) && new Set(head).size === head.length,'CSV headers must be present and unique',400);
+  return rows.filter(r=>r.some(x=>x.trim())).map((r,i)=>{requireThat(r.length===head.length,'CSV column mismatch row '+(i+2),400);return Object.fromEntries(head.map((key,j)=>[key,r[j]]))});
 }
+
