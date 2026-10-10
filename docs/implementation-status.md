@@ -1,15 +1,36 @@
 # Implementation status
 
-## Current work packages
+## Merged foundation (2026-10-09)
 
-| PR | Implemented scope | Production status |
-| --- | --- | --- |
-| [1](https://github.com/neophilism/Music-Operations-Engine/pull/1) | Initial ingestion, storage and summary foundation; repaired workflow line endings and added dependency lock | Open; no deployment |
-| [2](https://github.com/neophilism/Music-Operations-Engine/pull/2) | Label/family menus and access, catalog mappings, migrations, auditing, complete snapshot reporting | Open; both CI jobs passing |
-| [3](https://github.com/neophilism/Music-Operations-Engine/pull/3) | Signed TrackZero/SceneSignal delivery contracts, immutable event retries, shared-session aggregation, platform metrics and producer SDK | Open; 20 local tests passing; hosted checks linked from PR; no live producers |
+| PR | Delivered |
+| --- | --- |
+| [#1](https://github.com/neophilism/Music-Operations-Engine/pull/1) | Ingestion, PostgreSQL store, summaries, test foundation |
+| [#2](https://github.com/neophilism/Music-Operations-Engine/pull/2) | Label/family scopes, catalog mappings, access-scoped server keys and auditing |
+| [#3](https://github.com/neophilism/Music-Operations-Engine/pull/3) | Signed TrackZero/SceneSignal receivers, deduplication, reporting and producer SDK |
 
-PRs are stacked in order 1 → 2 → 3. The original roadmap contains 15 milestones. Multi-label/family reporting is added milestone 16. Some larger milestones have useful implemented portions without being finished; the machine-readable roadmap records that distinction.
+All three PRs have been merged into `main`. Earlier CI passed on each PR head. New deployments require independent verification, not just a passing PR check.
 
-Local acceptance includes PostgreSQL-engine migrations and HTTP requests, label access boundaries, same-named releases, legacy reimports, exact large integers, a 10,001-row report, signed/tampered/stale deliveries, atomic conflicts, concurrent retries, shared session/attendance deduplication, interrupted speaker contributions, expired session authorization, and SDK retries. Hosted CI also executes these checks against the runner's PostgreSQL service using isolated test schemas.
+## Infrastructure
 
-Interactive accounts and short-lived tokens, async source jobs, real distributor/streaming-service integrations, splits/settlements, materialized rollups, production deployment and independent acceptance remain on the roadmap. Source-side calibrated measurement and live app exports remain upstream dependencies. No money was spent or production infrastructure changed in this work package.
+- Dedicated Neon PostgreSQL project: `orange-forest-91354266` (credentials are never stored in Git).
+- Render service: [music-operations-engine](https://dashboard.render.com/web/srv-db4oo62jnfac73fvvpmg), deployed from `main` automatically.
+- Public endpoint: https://music-operations-engine.onrender.com
+- State: **deploy initiated; health and database connectivity not yet verified at the time of this update**.
+- Live TrackZero producer: **not connected**.
+- Live SceneSignal producer: **not connected**.
+
+## Launch validation
+
+1. Verify `GET /health` returns a healthy database response.
+2. Verify unauthenticated access to protected reports is denied.
+3. Verify the server-side key can retrieve `/v1/scopes` and `/v1/sources`.
+4. Register production label/recording mappings using authorized management credentials.
+5. Configure distinct source keys and signing secrets; test one real TrackZero and SceneSignal event from durable app outboxes.
+6. Inspect freshness, duplicate/replay handling, and mixed-family totals.
+7. Add Engine Room monitoring and check actual health, deployment and source freshness (never conflate GitHub merge with a successful production launch).
+
+## Outstanding roadmap
+
+Interactive accounts and short-lived tokens; async jobs and recovery; encrypted provider-connector secrets; TooLost, music streaming and Stems adapters; source-side TrackZero/SceneSignal exporters; ticketing; collaborators/rights; materialized rollups; royalties and reconciliation; exports, alerts, acceptance and full production hardening.
+
+**Security boundary:** Do not publish the Render service's database URL, bootstrap API key, scoped credentials, webhook secrets or private payloads. No audio/permit/listener identities belong in this reporting backend.
