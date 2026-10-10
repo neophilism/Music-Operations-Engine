@@ -121,6 +121,45 @@ JOIN music_external_ids e ON e.label_id=c.label_id AND e.catalog_id=c.id
 WHERE e.label_id=$1 AND e.source=$2 AND e.kind=$3 AND e.external_id=$4`,[labelId,source,kind,externalId]);
       return result.rows[0] || null;
     },
+    async catalogItem(labelId,id) {
+      return (await pool.query('SELECT '+catalogFields+' FROM music_catalog WHERE label_id=$1 AND id=$2',[labelId,id])).rows[0] || null;
+    },
+    async ingestDelivery(batch,contentHash,actor) {
+      return transaction(async client=>{
+        const {labelId,platform,deliveryId}=batch;
+        const reservation=await client.query(`INSERT INTO music_deliveries(label_id,platform,delivery_id,content_hash) VALUES($1,$2,$3,$4)
+ON CONFLICT DO NOTHING RETURNING delivery_id`,[labelId,platform,deliveryId,contentHash]);
+        if (!reservation.rows.length) {
+          const previous=(await client.query('SELECT content_hash FROM music_deliveries WHERE label_id=$1 AND platform=$2 AND delivery_id=$3',[labelId,platform,deliveryId])).rows[0];
+          requireThat(previous?.content_hash === contentHash,'Delivery id was reused with different content',409);
+          return {accepted:0,duplicates:batch.events.length,duplicateDelivery:true};
+        }
+        const fresh=[];
+        for (const event of batch.events) {
+          const saved=await client.query(`INSERT INTO music_platform_events(label_id,platform,external_id,content_hash) VALUES($1,$2,$3,$4)
+ON CONFLICT DO NOTHING RETURNING external_id`,[labelId,platform,event.id,event.contentHash]);
+          if (!saved.rows.length) {
+            const previous=(await client.query('SELECT content_hash FROM music_platform_events WHERE label_id=$1 AND platform=$2 AND external_id=$3',[labelId,platform,event.id])).rows[0];
+            requireThat(previous?.content_hash === event.contentHash,'Platform event id was reused with different content',409);
+            continue;
+          }
+          const fact=event.fact;
+          if (fact.metadata.logicalActivityId) {
+            const metrics=fact.metadata.scene || (fact.metadata.trackzero ? {...fact.metadata.trackzero,trackId:fact.trackId} : {});
+            const shared=await client.query(`INSERT INTO music_shared_measurements(source,activity_id,type,quantity,metrics) VALUES($1,$2,$3,$4,$5)
+ON CONFLICT(source,activity_id) DO UPDATE SET type=EXCLUDED.type
+WHERE music_shared_measurements.type=EXCLUDED.type AND music_shared_measurements.quantity=EXCLUDED.quantity AND music_shared_measurements.metrics=EXCLUDED.metrics RETURNING activity_id`,
+              [platform,fact.metadata.logicalActivityId,fact.type,String(fact.quantity),JSON.stringify(metrics)]);
+            requireThat(shared.rows.length,'Shared physical report has conflicting measurements',409);
+          }
+          fresh.push(fact);
+        }
+        await insertFacts(client,fresh);
+        await client.query('UPDATE music_deliveries SET accepted=$4 WHERE label_id=$1 AND platform=$2 AND delivery_id=$3',[labelId,platform,deliveryId,fresh.length]);
+        await audit(client,actor,'delivery.accepted',[labelId],{platform,deliveryId,accepted:fresh.length});
+        return {accepted:fresh.length,duplicates:batch.events.length-fresh.length,duplicateDelivery:false};
+      });
+    },
     async upsert(facts,actor='system') {
       await transaction(async c=>{await insertFacts(c,facts);await audit(c,actor,'facts.upsert',[...new Set(facts.map(f=>f.labelId))],{records:facts.length});});
       return facts.length;

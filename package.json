@@ -1,6 +1,6 @@
 {
   "name": "music-operations-engine",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -13,5 +13,10 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.8"
+  },
+  "exports": {
+    ".": "./src/core.js",
+    "./client": "./src/client.js",
+    "./store": "./src/store.js"
   }
 }

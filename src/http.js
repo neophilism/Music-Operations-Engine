@@ -2,6 +2,8 @@ import {normalizeFact,createSummary,parseCsv} from './core.js';
 import {loadCredentials,authenticate,permit,permitLabel,permitSource,resolveScope} from './auth.js';
 import {ApiError,requireThat} from './errors.js';
 import {timestamp} from './validation.js';
+import {PLATFORMS,normalizePlatformBatch} from './platforms.js';
+import {loadWebhookSecrets,verifyWebhook} from './webhooks.js';
 
 export async function readBody(req) {
   const chunks=[];let size=0;
@@ -38,7 +40,7 @@ export async function report(store,filter) {
   return {...summary.value(),scope:{labelIds:filter.labelIds,selection:filter.selection,familyId:filter.familyId},from:filter.from,to:filter.to,
     partial:false,synthetic:false,generatedAt:new Date().toISOString()};
 }
-export function handler(store,{credentials=loadCredentials(),corsOrigin=process.env.CORS_ORIGIN,onError=console.error}={}) {
+export function handler(store,{credentials=loadCredentials(),webhookSecrets=loadWebhookSecrets(),corsOrigin=process.env.CORS_ORIGIN,onError=console.error}={}) {
   return async (req,res)=>{
     const respond=(status,value)=>reply(req,res,status,value,corsOrigin);
     try {
@@ -46,6 +48,36 @@ export function handler(store,{credentials=loadCredentials(),corsOrigin=process.
       if (req.method === 'OPTIONS') return respond(204);
       if (req.method === 'GET' && url.pathname === '/health') return respond(200,{ok:await store.health(),service:'music-operations-engine'});
       const principal=authenticate(req,credentials);
+      if (req.method === 'GET' && url.pathname === '/v1/platforms') {
+        permit(principal,'read');
+        const filter=await reportFilter(url.searchParams,principal,store),sources=await store.sources(filter);
+        return respond(200,{scope:{labelIds:filter.labelIds},platforms:PLATFORMS.filter(p=>!principal.sources || principal.sources.includes(p)).map(id=>{
+          const source=sources.find(s=>s.source===id);
+          return {id,name:id === 'trackzero' ? 'TrackZero' : 'SceneSignal',schemaVersion:1,ingestionConfigured:Boolean(webhookSecrets[id]),
+            status:source ? 'data-received' : 'awaiting-producer',records:source?.records || 0,lastIngestedAt:source?.lastIngestedAt || null,latestEventAt:source?.latestEventAt || null};
+        })});
+      }
+      const platformRoute=/^\/v1\/platforms\/([a-z]+)\/(events|summary)$/.exec(url.pathname);
+      if (platformRoute) {
+        const [,platform,operation]=platformRoute;
+        requireThat(PLATFORMS.includes(platform),'Unknown platform',404);
+        permitSource(principal,platform);
+        if (req.method === 'GET' && operation === 'summary') {
+          permit(principal,'read');
+          requireThat(!url.searchParams.has('source') || url.searchParams.get('source') === platform,'Source filter does not match platform',400);
+          url.searchParams.set('source',platform);
+          return respond(200,await report(store,await reportFilter(url.searchParams,principal,store)));
+        }
+        if (req.method === 'POST' && operation === 'events') {
+          permit(principal,'ingest');
+          const {raw,data}=await readBody(req);
+          const hash=verifyWebhook(req.headers,raw,webhookSecrets[platform]);
+          permitLabel(principal,data.labelId);
+          const batch=await normalizePlatformBatch(data,platform,store);
+          return respond(200,{...await store.ingestDelivery(batch,hash,principal.id),platform,labelId:batch.labelId,deliveryId:batch.deliveryId});
+        }
+        return respond(405,{error:'Method not allowed'});
+      }
       if (req.method === 'GET' && url.pathname === '/v1/scopes') {
         permit(principal,'read');
         return respond(200,await store.scopes(principal.labels.includes('*') ? null : principal.labels));
@@ -68,9 +100,11 @@ export function handler(store,{credentials=loadCredentials(),corsOrigin=process.
       if (req.method === 'POST' && url.pathname === '/v1/ingest') {
         permit(principal,'ingest');const {data}=await readBody(req);
         const source=data.source || 'manual';permitSource(principal,source);
+        requireThat(!PLATFORMS.includes(source),'Platform sources require their signed platform endpoint');
         const raw=data.csv !== undefined ? parseCsv(data.csv) : data.facts;
         requireThat(Array.isArray(raw) && raw.length <= 10000,'Provide up to 10,000 facts',400);
         const facts=raw.map(r=>normalizeFact(r,source,{labelId:data.labelId}));
+        requireThat(facts.every(f=>!f.metadata.logicalActivityId && !f.metadata.trackzero && !f.metadata.scene),'Provider-only metadata requires the signed platform endpoint');
         for (const fact of facts) permitLabel(principal,fact.labelId);
         return respond(200,{accepted:await store.upsert(facts,principal.id),source,labelIds:[...new Set(facts.map(f=>f.labelId))]});
       }

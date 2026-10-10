@@ -1,8 +1,9 @@
 import {createHash} from 'node:crypto';
 import {requireThat} from './errors.js';
 import {identifier, integer, exact, timestamp} from './validation.js';
+import {platformBuckets,addPlatformMetrics,platformReport} from './metrics.js';
 
-export const TYPES = ['sale','stream','play','attendance','event','refund','royalty'];
+export const TYPES = ['sale','stream','play','attendance','event','refund','royalty','reward','groove','contribution'];
 export function normalizeFact(raw, source='manual', context={}) {
   requireThat(raw && typeof raw === 'object' && !Array.isArray(raw),'Fact must be an object');
   source=identifier(source,'source');
@@ -33,11 +34,17 @@ export function normalizeFact(raw, source='manual', context={}) {
   result.id=createHash('sha256').update(labelId+'\0'+source+'\0'+externalId).digest('hex');
   return result;
 }
-const countKeys=['sales','streams','plays','attendees','events','royalties'];
-const typeCounts={sale:'sales',stream:'streams',play:'plays',attendance:'attendees',event:'events',royalty:'royalties'};
-function bucket() { return {counts:Object.fromEntries(countKeys.map(k=>[k,0n])),currencies:new Map(),factCount:0n}; }
+const countKeys=['sales','streams','plays','attendees','events','royalties','rewards','grooves','contributions'];
+const typeCounts={sale:'sales',stream:'streams',play:'plays',attendance:'attendees',event:'events',royalty:'royalties',reward:'rewards',groove:'grooves',contribution:'contributions'};
+function bucket() { return {counts:Object.fromEntries(countKeys.map(k=>[k,0n])),currencies:new Map(),factCount:0n,platforms:platformBuckets(),logicalSeen:new Set()}; }
 function add(bucket,fact) {
   bucket.factCount++;
+  if (fact.metadata?.logicalActivityId) {
+    const key=fact.source+'\0'+fact.metadata.logicalActivityId;
+    if (bucket.logicalSeen.has(key)) return;
+    bucket.logicalSeen.add(key);
+  }
+  addPlatformMetrics(bucket.platforms,fact);
   const key=typeCounts[fact.type];
   if (key) bucket.counts[key]+=BigInt(fact.quantity);
   if (['sale','refund','royalty'].includes(fact.type)) {
@@ -47,7 +54,7 @@ function add(bucket,fact) {
 }
 function publicBucket(b) {
   return {counts:Object.fromEntries(Object.entries(b.counts).map(([k,v])=>[k,exact(v)])),
-    currencies:Object.fromEntries([...b.currencies].map(([k,v])=>[k,Object.fromEntries(Object.entries(v).map(([key,n])=>[key,exact(n)]))])),factCount:exact(b.factCount)};
+    currencies:Object.fromEntries([...b.currencies].map(([k,v])=>[k,Object.fromEntries(Object.entries(v).map(([key,n])=>[key,exact(n)]))])),factCount:exact(b.factCount),platforms:platformReport(b.platforms)};
 }
 function group(map,key,details,fact) {
   if (!map.has(key)) map.set(key,{...details,bucket:bucket()});

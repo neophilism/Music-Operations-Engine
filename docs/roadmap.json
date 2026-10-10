@@ -1,0 +1,161 @@
+{
+  "schemaVersion": 1,
+  "project": "Music-Operations-Engine",
+  "baselineMilestones": 15,
+  "addedMilestones": 1,
+  "productionStatus": "not-deployed",
+  "livePlatformConnections": {
+    "trackzero": "awaiting-producer",
+    "scenesignal": "awaiting-producer"
+  },
+  "milestones": [
+    {
+      "id": 1,
+      "title": "Foundation",
+      "origin": "baseline",
+      "implementationStatus": "implemented",
+      "pullRequests": [
+        1
+      ],
+      "evidence": "Initial foundation; production authentication continues in milestone 2."
+    },
+    {
+      "id": 2,
+      "title": "Interactive accounts and short-lived tokens",
+      "origin": "baseline",
+      "implementationStatus": "partial",
+      "pullRequests": [
+        2
+      ],
+      "evidence": "Scoped server keys and registry audit implemented; interactive accounts and short-lived tokens remain."
+    },
+    {
+      "id": 3,
+      "title": "Async jobs and source observability",
+      "origin": "baseline",
+      "implementationStatus": "planned",
+      "pullRequests": [],
+      "evidence": "Not implemented in the current work packages."
+    },
+    {
+      "id": 4,
+      "title": "Connector SDK and encrypted secrets",
+      "origin": "baseline",
+      "implementationStatus": "partial",
+      "pullRequests": [
+        3
+      ],
+      "evidence": "Signed producer SDK implemented; third-party source manifests and encrypted secrets infrastructure remain."
+    },
+    {
+      "id": 5,
+      "title": "Distributor imports and settlements",
+      "origin": "baseline",
+      "implementationStatus": "planned",
+      "pullRequests": [],
+      "evidence": "Not implemented in the current work packages."
+    },
+    {
+      "id": 6,
+      "title": "Authorized streaming-service reporting",
+      "origin": "baseline",
+      "implementationStatus": "planned",
+      "pullRequests": [],
+      "evidence": "Not implemented in the current work packages."
+    },
+    {
+      "id": 7,
+      "title": "Ticketing and in-person events",
+      "origin": "baseline",
+      "implementationStatus": "planned",
+      "pullRequests": [],
+      "evidence": "Not implemented in the current work packages."
+    },
+    {
+      "id": 8,
+      "title": "TrackZero verified speaker adapter",
+      "origin": "baseline",
+      "implementationStatus": "partial",
+      "pullRequests": [
+        3
+      ],
+      "evidence": "Receiver contract and replay controls implemented; live producers, calibrated verification and field gates remain."
+    },
+    {
+      "id": 9,
+      "title": "SceneSignal session adapter",
+      "origin": "baseline",
+      "implementationStatus": "partial",
+      "pullRequests": [
+        3
+      ],
+      "evidence": "Receiver, authorization-status checks and shared-session aggregation implemented; live producer remains."
+    },
+    {
+      "id": 10,
+      "title": "Stems sales and licenses",
+      "origin": "baseline",
+      "implementationStatus": "planned",
+      "pullRequests": [],
+      "evidence": "Not implemented in the current work packages."
+    },
+    {
+      "id": 11,
+      "title": "Canonical catalog and ISRC mappings",
+      "origin": "baseline",
+      "implementationStatus": "partial",
+      "pullRequests": [
+        2,
+        3
+      ],
+      "evidence": "Label-scoped primary-artist/release/track and external mappings implemented; collaborator/rights extensions remain."
+    },
+    {
+      "id": 12,
+      "title": "Materialized rollups and scale",
+      "origin": "baseline",
+      "implementationStatus": "partial",
+      "pullRequests": [
+        2
+      ],
+      "evidence": "Full snapshot reports and exact bigint totals implemented; materialized rollups remain."
+    },
+    {
+      "id": 13,
+      "title": "Revenue recognition and royalty splits",
+      "origin": "baseline",
+      "implementationStatus": "planned",
+      "pullRequests": [],
+      "evidence": "Not implemented in the current work packages."
+    },
+    {
+      "id": 14,
+      "title": "Signed webhooks and delivery queue",
+      "origin": "baseline",
+      "implementationStatus": "partial",
+      "pullRequests": [
+        3
+      ],
+      "evidence": "HMAC, replay-safe identities and atomic persistence implemented; async queue administration remains."
+    },
+    {
+      "id": 15,
+      "title": "Exports, alerts and acceptance",
+      "origin": "baseline",
+      "implementationStatus": "planned",
+      "pullRequests": [],
+      "evidence": "Not implemented in the current work packages."
+    },
+    {
+      "id": 16,
+      "title": "Label/family access and reporting",
+      "origin": "added",
+      "implementationStatus": "implemented",
+      "pullRequests": [
+        2,
+        3
+      ],
+      "evidence": "Accessible label/family menu API and aggregate reports implemented; client UI lives in its separate repository."
+    }
+  ]
+}

@@ -52,7 +52,7 @@ export async function labels(store) {
   await store.putLabel({id:'hidden',name:'Hidden',familyIds:['family']});
 }
 export async function catalog(store,labelId='alpha') {
-  await store.putCatalog({labelId,id:'artist',kind:'artist',name:'Artist'});
+  await store.putCatalog({labelId,id:'artist',kind:'artist',name:'Artist',externalIds:[{source:'trackzero',externalId:'tz-artist'},{source:'scenesignal',externalId:'ss-artist'}]});
   await store.putCatalog({labelId,id:'album',kind:'release',name:'Same Album',artistId:'artist',externalIds:[{source:'trackzero',externalId:'tz-album'},{source:'scenesignal',externalId:'ss-album'}]});
   await store.putCatalog({labelId,id:'track',kind:'track',name:'Track',artistId:'artist',releaseId:'album',isrc:'USAAA2600001',externalIds:[{source:'trackzero',externalId:'tz-track'},{source:'scenesignal',externalId:'ss-track'}]});
 }
