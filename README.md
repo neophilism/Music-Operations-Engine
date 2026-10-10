@@ -1,5 +1,7 @@
 # Music Operations Engine
 
+**Complete development plan and cross-account handoff:** [docs/DEVELOPMENT_PLAN.md](docs/DEVELOPMENT_PLAN.md).
+
 Provider-agnostic music-business ingestion and analytics backend. Label branding and the Command Center stay in their separate application repository.
 
 ## Run
