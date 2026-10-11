@@ -44,11 +44,12 @@
       "id": 4,
       "title": "Connector SDK and encrypted secrets",
       "origin": "baseline",
-      "implementationStatus": "partial",
+      "implementationStatus": "implemented",
       "pullRequests": [
-        3
+        3,
+        7
       ],
-      "evidence": "Signed producer SDK implemented; third-party source manifests and encrypted secrets infrastructure remain."
+      "evidence": "Signed producer SDK plus label-scoped provider manifests, deterministic field mappings, resumable backfill cursors and AES-256-GCM credential envelopes are implemented. No live third-party provider, production credential, backfill reconciliation, key-rotation drill or monitoring acceptance is claimed."
     },
     {
       "id": 5,
