@@ -114,7 +114,7 @@ WHERE label_id=$1 AND source=$2`,[normalized.labelId,normalized.source]);
 WHERE label_id=$1 AND source=$2 RETURNING label_id AS "labelId",source,backfill_cursor AS "backfillCursor"`,
           [labelId,source,backfillCursor]);
         requireThat(result.rows.length,'Connector not found',404);
-        await audit(c,actor,'connector.cursor.updated',[labelId],{source,backfillCursor});
+        await audit(c,actor,'connector.cursor.updated',[labelId],{source,cleared:backfillCursor===null});
         return result.rows[0];
       });
     },
