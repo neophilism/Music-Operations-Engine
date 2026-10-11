@@ -17,6 +17,7 @@
   "exports": {
     ".": "./src/core.js",
     "./client": "./src/client.js",
-    "./store": "./src/store.js"
+    "./store": "./src/store.js",
+    "./connectors": "./src/connectors.js"
   }
 }
