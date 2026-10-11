@@ -161,5 +161,7 @@
       ],
       "evidence": "Accessible label/family menu API and aggregate reports implemented; client UI lives in its separate repository."
     }
-  ]
+  ],
+  "_canonicalRoadmap": "registry/roadmap.json",
+  "_notice": "Historical scope/evidence; all new PR plans and mappings belong in canonical registry."
 }
