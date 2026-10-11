@@ -1,5 +1,5 @@
 import {normalizeFact,createSummary,parseCsv} from './core.js';
-import {loadCredentials,authenticate,permit,permitLabel,permitSource,resolveScope} from './auth.js';
+import {loadCredentials,authenticateRequest,permit,permitLabel,permitSource,resolveScope} from './auth.js';
 import {ApiError,requireThat} from './errors.js';
 import {timestamp} from './validation.js';
 import {PLATFORMS,normalizePlatformBatch} from './platforms.js';
@@ -47,7 +47,21 @@ export function handler(store,{credentials=loadCredentials(),webhookSecrets=load
       const url=new URL(req.url,'http://localhost');
       if (req.method === 'OPTIONS') return respond(204);
       if (req.method === 'GET' && url.pathname === '/health') return respond(200,{ok:await store.health(),service:'music-operations-engine'});
-      const principal=authenticate(req,credentials);
+      if (req.method === 'POST' && url.pathname === '/v1/auth/token') {
+        const {data}=await readBody(req);
+        const session=await store.issueSession(data.email,data.password);
+        return respond(200,{token:session.token,tokenType:'Bearer',expiresAt:session.expiresAt});
+      }
+      const principal=await authenticateRequest(req,credentials,store);
+      if (req.method === 'POST' && url.pathname === '/v1/auth/revoke') {
+        requireThat(principal.sessionId,'Only an interactive session can revoke itself',400);
+        await store.revokeSession(principal.sessionId,principal.id);
+        return respond(200,{revoked:true});
+      }
+      if (req.method === 'POST' && url.pathname === '/v1/accounts') {
+        permit(principal,'manage');const {data}=await readBody(req);
+        return respond(201,{account:await store.putAccount(data,principal.id)});
+      }
       if (req.method === 'GET' && url.pathname === '/v1/platforms') {
         permit(principal,'read');
         const filter=await reportFilter(url.searchParams,principal,store),sources=await store.sources(filter);

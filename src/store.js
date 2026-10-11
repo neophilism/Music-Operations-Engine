@@ -3,6 +3,8 @@ import {migrate} from './migrations.js';
 import {normalizeLabel,normalizeFamily,normalizeCatalog} from './catalog.js';
 import {ApiError,requireThat} from './errors.js';
 import {exact} from './validation.js';
+import {issueBearer,normalizeAccount,passwordDigest,passwordMatches,principalFromAccount,tokenDigest} from './accounts.js';
+import {randomUUID} from 'node:crypto';
 
 const fields=`id,label_id AS "labelId",source,external_id AS "externalId",type,occurred_at AS "occurredAt",
 quantity::text,amount_minor::text AS "amountMinor",currency,artist,release_title AS release,track,channel,territory,
@@ -62,6 +64,65 @@ artist_id=EXCLUDED.artist_id,release_id=EXCLUDED.release_id,track_id=EXCLUDED.tr
     }
   }
   return {
+    async putAccount(raw,actor='system') {
+      const account=normalizeAccount(raw),digest=await passwordDigest(account.password),id=randomUUID();
+      try {
+        await transaction(async c=>{
+          if (!account.labelIds.includes('*')) {
+            const labels=await c.query('SELECT id FROM music_labels WHERE id=ANY($1::text[])',[account.labelIds]);
+            requireThat(labels.rows.length===account.labelIds.length,'Account label scope contains an unknown label',422);
+          }
+          await c.query(`INSERT INTO music_accounts(id,email,password_salt,password_hash,role,label_ids)
+VALUES($1,$2,$3,$4,$5,$6)`,[id,account.email,digest.salt,digest.hash,account.role,account.labelIds]);
+          await audit(c,actor,'account.created',account.labelIds,{accountId:id,role:account.role});
+        });
+      } catch(error) {
+        if (error instanceof ApiError && error.status===409) throw new ApiError(409,'Account already exists');
+        throw error;
+      }
+      return {id,email:account.email,role:account.role,labelIds:account.labelIds,permissions:account.permissions};
+    },
+    async issueSession(email,password,{now=new Date(),lifetimeMs}={}) {
+      const normalized=String(email || '').trim().toLowerCase();
+      const result=await pool.query(`SELECT id,email,password_salt AS "passwordSalt",password_hash AS "passwordHash",role,label_ids AS "labelIds"
+FROM music_accounts WHERE email=$1 AND disabled_at IS NULL`,[normalized]);
+      const account=result.rows[0];
+      const passwordValid=await passwordMatches(
+        typeof password==='string' ? password : '',
+        account?.passwordSalt || '0'.repeat(32),
+        account?.passwordHash || '0'.repeat(128)
+      );
+      if (!account || !passwordValid) {
+        throw new ApiError(401,'Unauthorized');
+      }
+      const session=issueBearer(now,lifetimeMs);
+      await transaction(async c=>{
+        const active=await c.query('SELECT 1 FROM music_accounts WHERE id=$1 AND disabled_at IS NULL FOR SHARE',[account.id]);
+        requireThat(active.rows.length,'Unauthorized',401);
+        await c.query(`INSERT INTO music_account_sessions(id,account_id,token_hash,created_at,expires_at,last_seen_at)
+VALUES($1,$2,$3,$4,$5,$4)`,[session.id,account.id,session.tokenHash,session.createdAt,session.expiresAt]);
+        await audit(c,account.id,'session.issued',account.labelIds,{sessionId:session.id,expiresAt:session.expiresAt.toISOString()});
+      });
+      return {token:session.token,expiresAt:session.expiresAt.toISOString(),principal:principalFromAccount(account,session.id)};
+    },
+    async authenticateSession(token,now=new Date()) {
+      if (typeof token!=='string' || token.length!==43) return null;
+      const result=await pool.query(`SELECT a.id,a.role,a.label_ids AS "labelIds",s.id AS "sessionId"
+FROM music_account_sessions s JOIN music_accounts a ON a.id=s.account_id
+WHERE s.token_hash=$1 AND s.revoked_at IS NULL AND s.expires_at>$2 AND a.disabled_at IS NULL`,[tokenDigest(token),now]);
+      const row=result.rows[0];
+      if (!row) return null;
+      await pool.query('UPDATE music_account_sessions SET last_seen_at=$2 WHERE id=$1',[row.sessionId,now]);
+      return principalFromAccount(row,row.sessionId);
+    },
+    async revokeSession(sessionId,actor) {
+      return transaction(async c=>{
+        const result=await c.query('UPDATE music_account_sessions SET revoked_at=now() WHERE id=$1 AND account_id=$2 AND revoked_at IS NULL RETURNING id',[sessionId,actor]);
+        requireThat(result.rows.length,'Session not found',404);
+        await audit(c,actor,'session.revoked',[],{sessionId});
+        return true;
+      });
+    },
     async putFamily(raw,actor='system') {
       const f=normalizeFamily(raw);
       await transaction(async c=>{await c.query('INSERT INTO music_label_families(id,name) VALUES($1,$2) ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name',[f.id,f.name]);await audit(c,actor,'family.put',[],{id:f.id});});
@@ -199,4 +260,3 @@ GROUP BY source ORDER BY source`,[labelIds,sources,from,to]);
     async close() { await pool.end(); }
   };
 }
-

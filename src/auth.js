@@ -42,6 +42,17 @@ export function authenticate(req, credentials) {
   if (!principal) throw new ApiError(401,'Unauthorized');
   return principal;
 }
+export async function authenticateRequest(req,credentials,store,now=new Date()) {
+  try { return authenticate(req,credentials); }
+  catch(error) {
+    if (!(error instanceof ApiError) || error.status!==401) throw error;
+    const match=/^Bearer ([^\s]+)$/i.exec(req.headers.authorization || '');
+    if (!match) throw error;
+    const principal=await store.authenticateSession(match[1],now);
+    if (!principal) throw error;
+    return principal;
+  }
+}
 export function permit(principal, permission) {
   requireThat(principal.permissions.includes(permission), 'Forbidden', 403);
 }
