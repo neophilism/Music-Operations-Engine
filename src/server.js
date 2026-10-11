@@ -11,7 +11,7 @@ export async function start(env=process.env) {
   const webhookSecrets=loadWebhookSecrets(env);
   const port=Number(env.PORT || 4000);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Invalid PORT');
-  const store=await openStore(env.DATABASE_URL);
+  const store=await openStore(env.DATABASE_URL,{connectorKey:env.CONNECTOR_MASTER_KEY});
   const server=http.createServer(handler(store,{credentials,webhookSecrets,corsOrigin:env.CORS_ORIGIN}));
   server.listen(port,()=>console.log('Music Operations Engine listening on '+port));
   const shutdown=()=>server.close(async()=>{await store.close();});

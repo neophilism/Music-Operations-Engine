@@ -6,6 +6,7 @@ import {exact} from './validation.js';
 import {issueBearer,normalizeAccount,passwordDigest,passwordMatches,principalFromAccount,tokenDigest} from './accounts.js';
 import {randomUUID} from 'node:crypto';
 import {jobLeaseMs,normalizeJob,normalizeFailure} from './jobs.js';
+import {decryptConnectorCredential,encryptConnectorCredential,normalizeBackfillCursor,normalizeConnector} from './connectors.js';
 
 const fields=`id,label_id AS "labelId",source,external_id AS "externalId",type,occurred_at AS "occurredAt",
 quantity::text,amount_minor::text AS "amountMinor",currency,artist,release_title AS release,track,channel,territory,
@@ -15,12 +16,12 @@ function factRow(r) { return {...r,quantity:exact(r.quantity),amountMinor:exact(
 async function audit(client,actor,action,labelIds,details={}) {
   await client.query('INSERT INTO music_audit(actor,action,label_ids,details) VALUES($1,$2,$3,$4)',[actor,action,labelIds,JSON.stringify(details)]);
 }
-export async function openStore(connectionString) {
+export async function openStore(connectionString,options={}) {
   if (!connectionString) throw new Error('DATABASE_URL required');
   const pool=new pg.Pool({connectionString,max:5});
-  try { return await createStore(pool); } catch(e) { await pool.end(); throw e; }
+  try { return await createStore(pool,options); } catch(e) { await pool.end(); throw e; }
 }
-export async function createStore(pool) {
+export async function createStore(pool,{connectorKey}={}) {
   await migrate(pool);
   async function transaction(work) {
     const client=await pool.connect();
@@ -65,6 +66,58 @@ artist_id=EXCLUDED.artist_id,release_id=EXCLUDED.release_id,track_id=EXCLUDED.tr
     }
   }
   return {
+    async putConnector(raw,actor='system') {
+      const connector=normalizeConnector(raw);
+      return transaction(async c=>{
+        await c.query(`INSERT INTO music_connectors(label_id,source,display_name,adapter_version,capabilities,field_mapping,backfill_cursor)
+VALUES($1,$2,$3,$4,$5,$6,$7)
+ON CONFLICT(label_id,source) DO UPDATE SET display_name=EXCLUDED.display_name,adapter_version=EXCLUDED.adapter_version,
+capabilities=EXCLUDED.capabilities,field_mapping=EXCLUDED.field_mapping,backfill_cursor=EXCLUDED.backfill_cursor,updated_at=now()`,
+          [connector.labelId,connector.source,connector.displayName,connector.adapterVersion,connector.capabilities,JSON.stringify(connector.fieldMapping),connector.backfillCursor]);
+        let hasCredential=(await c.query('SELECT 1 FROM music_connector_credentials WHERE label_id=$1 AND source=$2',[connector.labelId,connector.source])).rows.length>0;
+        if (Object.hasOwn(raw,'credential')) {
+          const envelope=encryptConnectorCredential(raw.credential,connectorKey);
+          await c.query(`INSERT INTO music_connector_credentials(label_id,source,ciphertext,iv,auth_tag,key_version)
+VALUES($1,$2,$3,$4,$5,$6)
+ON CONFLICT(label_id,source) DO UPDATE SET ciphertext=EXCLUDED.ciphertext,iv=EXCLUDED.iv,
+auth_tag=EXCLUDED.auth_tag,key_version=EXCLUDED.key_version,updated_at=now()`,
+            [connector.labelId,connector.source,envelope.ciphertext,envelope.iv,envelope.authTag,envelope.keyVersion]);
+          hasCredential=true;
+        }
+        await audit(c,actor,'connector.put',[connector.labelId],{source:connector.source,adapterVersion:connector.adapterVersion,hasCredential});
+        return {...connector,hasCredential};
+      });
+    },
+    async connectors({labelIds}) {
+      requireThat(Array.isArray(labelIds) && labelIds.length>0,'Connector listing requires an explicit label scope');
+      return (await pool.query(`SELECT c.label_id AS "labelId",c.source,c.display_name AS "displayName",
+c.adapter_version AS "adapterVersion",c.capabilities,c.field_mapping AS "fieldMapping",
+c.backfill_cursor AS "backfillCursor",c.updated_at AS "updatedAt",
+EXISTS(SELECT 1 FROM music_connector_credentials k WHERE k.label_id=c.label_id AND k.source=c.source) AS "hasCredential"
+FROM music_connectors c WHERE c.label_id=ANY($1::text[]) ORDER BY c.source,c.label_id`,[labelIds])).rows;
+    },
+    async connectorCredential(labelId,source,actor='system') {
+      const normalized=normalizeConnector({labelId,source,displayName:source,adapterVersion:'read',capabilities:['poll'],fieldMapping:{}});      
+      return transaction(async c=>{
+        const result=await c.query(`SELECT ciphertext,iv,auth_tag AS "authTag" FROM music_connector_credentials
+WHERE label_id=$1 AND source=$2`,[normalized.labelId,normalized.source]);
+        requireThat(result.rows.length,'Connector credential not found',404);
+        const secret=decryptConnectorCredential(result.rows[0],connectorKey);
+        await audit(c,actor,'connector.credential.read',[normalized.labelId],{source:normalized.source});
+        return secret;
+      });
+    },
+    async updateConnectorCursor(labelId,source,value,actor='system') {
+      const backfillCursor=normalizeBackfillCursor(value);
+      return transaction(async c=>{
+        const result=await c.query(`UPDATE music_connectors SET backfill_cursor=$3,updated_at=now()
+WHERE label_id=$1 AND source=$2 RETURNING label_id AS "labelId",source,backfill_cursor AS "backfillCursor"`,
+          [labelId,source,backfillCursor]);
+        requireThat(result.rows.length,'Connector not found',404);
+        await audit(c,actor,'connector.cursor.updated',[labelId],{source,cleared:backfillCursor===null});
+        return result.rows[0];
+      });
+    },
     async enqueueJob(raw,actor='system',now=new Date()) {
       const job=normalizeJob(raw,now);
       await transaction(async c=>{

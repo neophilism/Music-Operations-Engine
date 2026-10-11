@@ -25,3 +25,4 @@ Administrator-provisioned interactive accounts and 15-minute bearer sessions are
 PostgreSQL-backed ingest/resync jobs, bounded retries, dead-letter state and label-scoped source-health timestamps are documented in [durable jobs and source health](docs/durable-jobs.md). This repository defines the queue contract; a live worker deployment and operational alerts remain separate gates.
 
 The receiver contracts are implemented; the app repositories still need live telemetry producers. See [implementation evidence and production gaps](docs/implementation-status.md). Provider-specific consumer experiences remain in their own repositories.
+\nProvider connector manifests, resumable backfill cursors, explicit field mappings and encrypted-at-rest credentials are documented in [connector manifests and credentials](docs/connectors.md). This contract does not imply a live provider connection.\n

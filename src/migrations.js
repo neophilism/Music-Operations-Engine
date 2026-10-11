@@ -70,6 +70,21 @@ export const migrations = [
     );
     CREATE INDEX music_jobs_claimable ON music_jobs(source,available_at,created_at,id) WHERE status IN ('queued','retry');
     CREATE INDEX music_jobs_scope_status ON music_jobs(label_id,source,status,updated_at);
+  `},
+  {version:5,sql:`
+    CREATE TABLE music_connectors (
+      label_id text NOT NULL REFERENCES music_labels(id),source text NOT NULL,
+      display_name text NOT NULL,adapter_version text NOT NULL,capabilities text[] NOT NULL,
+      field_mapping jsonb NOT NULL,backfill_cursor text,created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(label_id,source)
+    );
+    CREATE TABLE music_connector_credentials (
+      label_id text NOT NULL,source text NOT NULL,ciphertext text NOT NULL,iv text NOT NULL,
+      auth_tag text NOT NULL,key_version text NOT NULL,updated_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY(label_id,source),
+      FOREIGN KEY(label_id,source) REFERENCES music_connectors(label_id,source) ON DELETE CASCADE
+    );
+    CREATE INDEX music_connectors_source ON music_connectors(source,label_id);
   `}
 ];
 
