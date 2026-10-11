@@ -34,9 +34,11 @@
       "id": 3,
       "title": "Async jobs and source observability",
       "origin": "baseline",
-      "implementationStatus": "planned",
-      "pullRequests": [],
-      "evidence": "Not implemented in the current work packages."
+      "implementationStatus": "implemented",
+      "pullRequests": [
+        6
+      ],
+      "evidence": "PostgreSQL-backed ingest/resync jobs, five-minute leases, bounded retries, dead-letter handling, audited transitions and label-scoped source-health timestamps are implemented. Live worker deployment and alerts remain operational gates."
     },
     {
       "id": 4,

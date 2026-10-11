@@ -71,6 +71,37 @@ export function handler(store,{credentials=loadCredentials(),webhookSecrets=load
             status:source ? 'data-received' : 'awaiting-producer',records:source?.records || 0,lastIngestedAt:source?.lastIngestedAt || null,latestEventAt:source?.latestEventAt || null};
         })});
       }
+      if (req.method === 'POST' && url.pathname === '/v1/jobs') {
+        permit(principal,'ingest');const {data}=await readBody(req);
+        permitLabel(principal,data.labelId);permitSource(principal,data.source);
+        return respond(202,{job:await store.enqueueJob(data,principal.id)});
+      }
+      if (req.method === 'POST' && url.pathname === '/v1/jobs/claim') {
+        permit(principal,'ingest');const {data}=await readBody(req);
+        permitSource(principal,data.source);
+        const jobs=await store.claimJobs({
+          source:data.source,limit:data.limit,workerId:principal.id,
+          labelIds:principal.labels.includes('*') ? null : principal.labels
+        });
+        return respond(200,{jobs});
+      }
+      const jobAction=/^\/v1\/jobs\/([0-9a-f-]+)\/(complete|fail)$/.exec(url.pathname);
+      if (req.method === 'POST' && jobAction) {
+        permit(principal,'ingest');const [,jobId,action]=jobAction;
+        if (action === 'complete') return respond(200,{job:await store.completeJob(jobId,principal.id)});
+        const {data}=await readBody(req);
+        return respond(200,{job:await store.failJob(jobId,principal.id,data)});
+      }
+      if (req.method === 'GET' && url.pathname === '/v1/jobs') {
+        permit(principal,'read');const filter=await reportFilter(url.searchParams,principal,store);
+        const limit=url.searchParams.has('limit') ? Number(url.searchParams.get('limit')) : 100;
+        requireThat(!url.searchParams.has('limit') || /^\d+$/.test(url.searchParams.get('limit')),'limit must be an integer',400);
+        return respond(200,{jobs:await store.jobs({labelIds:filter.labelIds,source:filter.sources?.[0] || null,limit}),scope:{labelIds:filter.labelIds}});
+      }
+      if (req.method === 'GET' && url.pathname === '/v1/source-health') {
+        permit(principal,'read');const filter=await reportFilter(url.searchParams,principal,store);
+        return respond(200,{sources:await store.sourceHealth({labelIds:filter.labelIds,sources:filter.sources}),scope:{labelIds:filter.labelIds}});
+      }
       const platformRoute=/^\/v1\/platforms\/([a-z]+)\/(events|summary)$/.exec(url.pathname);
       if (platformRoute) {
         const [,platform,operation]=platformRoute;
