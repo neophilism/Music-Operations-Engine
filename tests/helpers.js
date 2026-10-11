@@ -13,7 +13,7 @@ export const credentials=loadCredentials({ENGINE_CREDENTIALS:JSON.stringify([
   {id:'reader',key:secrets.reader,labels:['alpha','beta'],permissions:['read']},
   {id:'track',key:secrets.track,labels:['alpha'],permissions:['read','ingest'],sources:['trackzero']}
 ])});
-export async function fixture(beforeMigrate) {
+export async function fixture(beforeMigrate,storeOptions={}) {
   let pool,cleanup;
   if (process.env.TEST_DATABASE_URL) {
     const schema='music_test_'+randomBytes(8).toString('hex');
@@ -41,7 +41,7 @@ export async function fixture(beforeMigrate) {
     cleanup=async()=>{};
   }
   if (beforeMigrate) await beforeMigrate(pool);
-  const store=await createStore(pool);
+  const store=await createStore(pool,storeOptions);
   return {store,pool,async close(){await store.close();await cleanup();}};
 }
 export async function labels(store) {
