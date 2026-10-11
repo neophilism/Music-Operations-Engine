@@ -70,5 +70,8 @@ test('connector storage rejects unknown labels and missing deployment keys',asyn
   await assert.rejects(()=>f.store.putConnector({...manifest,labelId:'missing'}));
   await assert.rejects(()=>f.store.putConnector({...manifest,credential:'secret'},'admin'),/CONNECTOR_MASTER_KEY/);
   await f.store.putConnector(manifest,'admin');
+  const envelope=encryptConnectorCredential('stored-secret',key);
+  await f.pool.query(`INSERT INTO music_connector_credentials(label_id,source,ciphertext,iv,auth_tag,key_version)
+VALUES($1,$2,$3,$4,$5,$6)`,['alpha','example-provider',envelope.ciphertext,envelope.iv,envelope.authTag,envelope.keyVersion]);
   await assert.rejects(()=>f.store.connectorCredential('alpha','example-provider','worker'),/CONNECTOR_MASTER_KEY/);
 });
