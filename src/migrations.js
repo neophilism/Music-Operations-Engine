@@ -56,6 +56,20 @@ export const migrations = [
       CHECK(expires_at>created_at)
     );
     CREATE INDEX music_account_sessions_active ON music_account_sessions(account_id,expires_at) WHERE revoked_at IS NULL;
+  `},
+  {version:4,sql:`
+    CREATE TABLE music_jobs (
+      id text PRIMARY KEY,kind text NOT NULL CHECK(kind IN ('ingest','resync')),source text NOT NULL,
+      label_id text NOT NULL REFERENCES music_labels(id),payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+      status text NOT NULL CHECK(status IN ('queued','running','retry','succeeded','dead_letter')),
+      attempts integer NOT NULL DEFAULT 0 CHECK(attempts>=0),max_attempts integer NOT NULL CHECK(max_attempts BETWEEN 1 AND 10),
+      available_at timestamptz NOT NULL,locked_by text,locked_at timestamptz,last_error_code text,
+      created_at timestamptz NOT NULL,updated_at timestamptz NOT NULL,completed_at timestamptz,
+      CHECK((status='running')=(locked_by IS NOT NULL AND locked_at IS NOT NULL)),
+      CHECK(status<>'succeeded' OR completed_at IS NOT NULL)
+    );
+    CREATE INDEX music_jobs_claimable ON music_jobs(source,available_at,created_at,id) WHERE status IN ('queued','retry');
+    CREATE INDEX music_jobs_scope_status ON music_jobs(label_id,source,status,updated_at);
   `}
 ];
 

@@ -5,6 +5,7 @@ import {ApiError,requireThat} from './errors.js';
 import {exact} from './validation.js';
 import {issueBearer,normalizeAccount,passwordDigest,passwordMatches,principalFromAccount,tokenDigest} from './accounts.js';
 import {randomUUID} from 'node:crypto';
+import {jobLeaseMs,normalizeJob,normalizeFailure} from './jobs.js';
 
 const fields=`id,label_id AS "labelId",source,external_id AS "externalId",type,occurred_at AS "occurredAt",
 quantity::text,amount_minor::text AS "amountMinor",currency,artist,release_title AS release,track,channel,territory,
@@ -64,6 +65,74 @@ artist_id=EXCLUDED.artist_id,release_id=EXCLUDED.release_id,track_id=EXCLUDED.tr
     }
   }
   return {
+    async enqueueJob(raw,actor='system',now=new Date()) {
+      const job=normalizeJob(raw,now);
+      await transaction(async c=>{
+        await c.query(`INSERT INTO music_jobs(id,kind,source,label_id,payload,status,max_attempts,available_at,created_at,updated_at)
+VALUES($1,$2,$3,$4,$5,'queued',$6,$7,$8,$8)`,[job.id,job.kind,job.source,job.labelId,JSON.stringify(job.payload),job.maxAttempts,job.availableAt,now]);
+        await audit(c,actor,'job.enqueued',[job.labelId],{jobId:job.id,kind:job.kind,source:job.source});
+      });
+      return {...job,status:'queued',attempts:0};
+    },
+    async claimJobs({source,labelIds=null,limit=10,workerId,now=new Date()}) {
+      requireThat(Number.isInteger(limit) && limit>=1 && limit<=100,'limit must be 1–100',400);
+      requireThat(typeof workerId==='string' && workerId.length>0,'workerId is required',400);
+      return transaction(async c=>{
+        const staleBefore=new Date(now.getTime()-jobLeaseMs);
+        await c.query(`UPDATE music_jobs SET
+status=CASE WHEN attempts>=max_attempts THEN 'dead_letter' ELSE 'retry' END,
+available_at=$1,locked_by=NULL,locked_at=NULL,last_error_code='lease_expired',updated_at=$1
+WHERE status='running' AND locked_at<$2 AND source=$3 AND ($4::text[] IS NULL OR label_id=ANY($4))`,[now,staleBefore,source,labelIds]);
+        const result=await c.query(`WITH candidates AS (
+  SELECT id FROM music_jobs WHERE status IN ('queued','retry') AND available_at<=$1
+    AND source=$2 AND ($3::text[] IS NULL OR label_id=ANY($3))
+  ORDER BY available_at,created_at,id FOR UPDATE SKIP LOCKED LIMIT $4
+)
+UPDATE music_jobs j SET status='running',attempts=j.attempts+1,locked_by=$5,locked_at=$1,updated_at=$1
+FROM candidates c WHERE j.id=c.id
+RETURNING j.id,j.kind,j.source,j.label_id AS "labelId",j.payload,j.status,j.attempts,j.max_attempts AS "maxAttempts",j.available_at AS "availableAt",j.locked_at AS "lockedAt"`,[now,source,labelIds,limit,workerId]);
+        return result.rows;
+      });
+    },
+    async completeJob(jobId,workerId,now=new Date()) {
+      return transaction(async c=>{
+        const result=await c.query(`UPDATE music_jobs SET status='succeeded',locked_by=NULL,locked_at=NULL,completed_at=$3,updated_at=$3
+WHERE id=$1 AND locked_by=$2 AND status='running' RETURNING label_id AS "labelId",source`,[jobId,workerId,now]);
+        requireThat(result.rows.length,'Running job lease not found',409);
+        const job=result.rows[0];await audit(c,workerId,'job.succeeded',[job.labelId],{jobId,source:job.source});
+        return {id:jobId,status:'succeeded'};
+      });
+    },
+    async failJob(jobId,workerId,raw,now=new Date()) {
+      const failure=normalizeFailure(raw,now);
+      return transaction(async c=>{
+        const result=await c.query('SELECT label_id AS "labelId",source,attempts,max_attempts AS "maxAttempts" FROM music_jobs WHERE id=$1 AND locked_by=$2 AND status=\'running\' FOR UPDATE',[jobId,workerId]);
+        requireThat(result.rows.length,'Running job lease not found',409);
+        const job=result.rows[0],status=job.attempts>=job.maxAttempts ? 'dead_letter' : 'retry';
+        await c.query(`UPDATE music_jobs SET status=$3,available_at=$4,locked_by=NULL,locked_at=NULL,last_error_code=$5,updated_at=$6
+WHERE id=$1 AND locked_by=$2 AND status='running'`,[jobId,workerId,status,failure.retryAt,failure.errorCode,now]);
+        await audit(c,workerId,status==='dead_letter' ? 'job.dead_lettered' : 'job.retry_scheduled',[job.labelId],{jobId,source:job.source,errorCode:failure.errorCode,attempts:job.attempts});
+        return {id:jobId,status,attempts:job.attempts,maxAttempts:job.maxAttempts,availableAt:failure.retryAt};
+      });
+    },
+    async jobs({labelIds=null,source=null,limit=100}={}) {
+      requireThat(Number.isInteger(limit) && limit>=1 && limit<=1000,'limit must be 1–1000',400);
+      const result=await pool.query(`SELECT id,kind,source,label_id AS "labelId",status,attempts,max_attempts AS "maxAttempts",
+available_at AS "availableAt",locked_at AS "lockedAt",last_error_code AS "lastErrorCode",created_at AS "createdAt",updated_at AS "updatedAt",completed_at AS "completedAt"
+FROM music_jobs WHERE ($1::text[] IS NULL OR label_id=ANY($1)) AND ($2::text IS NULL OR source=$2)
+ORDER BY created_at DESC,id DESC LIMIT $3`,[labelIds,source,limit]);
+      return result.rows;
+    },
+    async sourceHealth({labelIds,sources=null}) {
+      const result=await pool.query(`SELECT source,
+COUNT(*) FILTER(WHERE status IN ('queued','retry'))::integer AS "backlog",
+COUNT(*) FILTER(WHERE status='running')::integer AS "running",
+COUNT(*) FILTER(WHERE status='dead_letter')::integer AS "deadLetter",
+MAX(updated_at) AS "lastJobAt",MAX(completed_at) AS "lastSucceededAt"
+FROM music_jobs WHERE label_id=ANY($1::text[]) AND ($2::text[] IS NULL OR source=ANY($2))
+GROUP BY source ORDER BY source`,[labelIds,sources]);
+      return result.rows;
+    },
     async putAccount(raw,actor='system') {
       const account=normalizeAccount(raw),digest=await passwordDigest(account.password),id=randomUUID();
       try {
