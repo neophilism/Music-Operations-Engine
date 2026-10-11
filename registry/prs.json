@@ -1,0 +1,226 @@
+{
+  "schemaVersion": 1,
+  "repository": "neophilism/Music-Operations-Engine",
+  "roadmapVersion": 1,
+  "planVerified": true,
+  "plannedPrCount": 16,
+  "observedAt": "2026-10-11T17:38:37.702Z",
+  "units": [
+    {
+      "id": "MOE-001",
+      "title": "Foundation",
+      "origin": "original",
+      "prs": [
+        1
+      ]
+    },
+    {
+      "id": "MOE-002",
+      "title": "Interactive accounts and short-lived tokens",
+      "origin": "original",
+      "prs": [
+        2,
+        5
+      ]
+    },
+    {
+      "id": "MOE-003",
+      "title": "Async jobs and source observability",
+      "origin": "original",
+      "prs": [
+        6
+      ]
+    },
+    {
+      "id": "MOE-004",
+      "title": "Connector SDK and encrypted secrets",
+      "origin": "original",
+      "prs": [
+        3,
+        7
+      ]
+    },
+    {
+      "id": "MOE-005",
+      "title": "Distributor imports and settlements",
+      "origin": "original",
+      "prs": []
+    },
+    {
+      "id": "MOE-006",
+      "title": "Authorized streaming-service reporting",
+      "origin": "original",
+      "prs": []
+    },
+    {
+      "id": "MOE-007",
+      "title": "Ticketing and in-person events",
+      "origin": "original",
+      "prs": []
+    },
+    {
+      "id": "MOE-008",
+      "title": "TrackZero verified speaker adapter",
+      "origin": "original",
+      "prs": []
+    },
+    {
+      "id": "MOE-009",
+      "title": "SceneSignal session adapter",
+      "origin": "original",
+      "prs": []
+    },
+    {
+      "id": "MOE-010",
+      "title": "Stems sales and licenses",
+      "origin": "original",
+      "prs": []
+    },
+    {
+      "id": "MOE-011",
+      "title": "Canonical catalog and ISRC mappings",
+      "origin": "original",
+      "prs": []
+    },
+    {
+      "id": "MOE-012",
+      "title": "Materialized rollups and scale",
+      "origin": "original",
+      "prs": []
+    },
+    {
+      "id": "MOE-013",
+      "title": "Revenue recognition and royalty splits",
+      "origin": "original",
+      "prs": []
+    },
+    {
+      "id": "MOE-014",
+      "title": "Signed webhooks and delivery queue",
+      "origin": "original",
+      "prs": []
+    },
+    {
+      "id": "MOE-015",
+      "title": "Exports, alerts and acceptance",
+      "origin": "original",
+      "prs": []
+    },
+    {
+      "id": "MOE-016",
+      "title": "Label/family access and reporting",
+      "origin": "addition",
+      "prs": [
+        2,
+        3
+      ]
+    }
+  ],
+  "pullRequests": [
+    {
+      "id": 4817623679,
+      "number": 7,
+      "title": "MOE-04: add connector manifests and encrypted credential storage",
+      "url": "https://github.com/neophilism/Music-Operations-Engine/pull/7",
+      "state": "closed",
+      "draft": false,
+      "createdAt": "2026-10-11T08:08:54.000Z",
+      "updatedAt": "2026-10-11T08:14:09.000Z",
+      "closedAt": "2026-10-11T08:14:09.000Z",
+      "mergedAt": "2026-10-11T08:14:09.000Z",
+      "headSha": "54c6746b50f5d91bfe432fc072a8c9a5ff7a024a",
+      "baseRef": "main",
+      "mergeCommitSha": "ed441847637d010519dd8202c9bea1529b91c006"
+    },
+    {
+      "id": 4817416665,
+      "number": 6,
+      "title": "MOE-03: add durable jobs, retries, and source health",
+      "url": "https://github.com/neophilism/Music-Operations-Engine/pull/6",
+      "state": "closed",
+      "draft": false,
+      "createdAt": "2026-10-11T07:31:53.000Z",
+      "updatedAt": "2026-10-11T07:33:09.000Z",
+      "closedAt": "2026-10-11T07:33:09.000Z",
+      "mergedAt": "2026-10-11T07:33:09.000Z",
+      "headSha": "48358be815274f39c343520636282b018a528368",
+      "baseRef": "main",
+      "mergeCommitSha": "ecae0758e271fbc2a73e101a10896f734aec3e4c"
+    },
+    {
+      "id": 4817382655,
+      "number": 5,
+      "title": "MOE-02: add interactive accounts and short-lived sessions",
+      "url": "https://github.com/neophilism/Music-Operations-Engine/pull/5",
+      "state": "closed",
+      "draft": false,
+      "createdAt": "2026-10-11T07:25:51.000Z",
+      "updatedAt": "2026-10-11T07:27:12.000Z",
+      "closedAt": "2026-10-11T07:27:12.000Z",
+      "mergedAt": "2026-10-11T07:27:12.000Z",
+      "headSha": "5843dbce349966cfa9861d673f532a3a29bc93d8",
+      "baseRef": "main",
+      "mergeCommitSha": "437950ca3b11715f8f91d7cda9ead47d226c0adb"
+    },
+    {
+      "id": 4807458467,
+      "number": 4,
+      "title": "Document merged engine foundation and production launch checks",
+      "url": "https://github.com/neophilism/Music-Operations-Engine/pull/4",
+      "state": "closed",
+      "draft": false,
+      "createdAt": "2026-10-10T00:52:08.000Z",
+      "updatedAt": "2026-10-10T00:57:05.000Z",
+      "closedAt": "2026-10-10T00:57:05.000Z",
+      "mergedAt": "2026-10-10T00:57:05.000Z",
+      "headSha": "8660984a16839a13756be88ea4121cce6a701f83",
+      "baseRef": "main",
+      "mergeCommitSha": "1fbc4a39f649b45b89eb66cd135a66776b5a9815"
+    },
+    {
+      "id": 4806325038,
+      "number": 3,
+      "title": "Track TrackZero and SceneSignal music across labels and families",
+      "url": "https://github.com/neophilism/Music-Operations-Engine/pull/3",
+      "state": "closed",
+      "draft": false,
+      "createdAt": "2026-10-09T22:00:59.000Z",
+      "updatedAt": "2026-10-10T00:46:05.000Z",
+      "closedAt": "2026-10-10T00:46:05.000Z",
+      "mergedAt": "2026-10-10T00:46:05.000Z",
+      "headSha": "f81caf37a895cbf21d430814d5ca67e3d83d3a45",
+      "baseRef": "main",
+      "mergeCommitSha": "bc7e388f52ac3f2f0b17324b662c51530133dd0f"
+    },
+    {
+      "id": 4806191609,
+      "number": 2,
+      "title": "Add label/family selection and access-scoped music operations",
+      "url": "https://github.com/neophilism/Music-Operations-Engine/pull/2",
+      "state": "closed",
+      "draft": false,
+      "createdAt": "2026-10-09T21:44:09.000Z",
+      "updatedAt": "2026-10-10T00:46:00.000Z",
+      "closedAt": "2026-10-10T00:46:00.000Z",
+      "mergedAt": "2026-10-10T00:46:00.000Z",
+      "headSha": "55a60d773fac44c85a29fac05659b168ee9feeb8",
+      "baseRef": "main",
+      "mergeCommitSha": "0d0038532da08c8df3b79e711eb0223db07faffc"
+    },
+    {
+      "id": 4805956083,
+      "number": 1,
+      "title": "Phase 1: build operational foundation",
+      "url": "https://github.com/neophilism/Music-Operations-Engine/pull/1",
+      "state": "closed",
+      "draft": false,
+      "createdAt": "2026-10-09T21:16:50.000Z",
+      "updatedAt": "2026-10-10T00:45:50.000Z",
+      "closedAt": "2026-10-10T00:45:50.000Z",
+      "mergedAt": "2026-10-10T00:45:50.000Z",
+      "headSha": "53a8cfad6980e114f733451ae0134684e08a8e6d",
+      "baseRef": "main",
+      "mergeCommitSha": "f1592b0c0afe1d06783a082c8b5eb1338ef84b1c"
+    }
+  ]
+}
