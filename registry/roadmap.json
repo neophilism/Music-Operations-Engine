@@ -1,0 +1,129 @@
+{
+  "repository": "neophilism/Music-Operations-Engine",
+  "title": "Music-Operations-Engine",
+  "version": 1,
+  "planVerified": true,
+  "plannedPrCount": 16,
+  "sourceFiles": [
+    "docs/roadmap.json",
+    "docs/DEVELOPMENT_PLAN.md"
+  ],
+  "granularity": "planned milestone",
+  "scopeNote": "Partial package mapping does not count full implementation.",
+  "milestones": [
+    {
+      "id": "MOE-001",
+      "title": "Foundation",
+      "origin": "original",
+      "pullRequests": [
+        1
+      ]
+    },
+    {
+      "id": "MOE-002",
+      "title": "Interactive accounts and short-lived tokens",
+      "origin": "original",
+      "pullRequests": [
+        2,
+        5
+      ]
+    },
+    {
+      "id": "MOE-003",
+      "title": "Async jobs and source observability",
+      "origin": "original",
+      "pullRequests": [
+        6
+      ]
+    },
+    {
+      "id": "MOE-004",
+      "title": "Connector SDK and encrypted secrets",
+      "origin": "original",
+      "pullRequests": [
+        3,
+        7
+      ]
+    },
+    {
+      "id": "MOE-005",
+      "title": "Distributor imports and settlements",
+      "origin": "original"
+    },
+    {
+      "id": "MOE-006",
+      "title": "Authorized streaming-service reporting",
+      "origin": "original"
+    },
+    {
+      "id": "MOE-007",
+      "title": "Ticketing and in-person events",
+      "origin": "original"
+    },
+    {
+      "id": "MOE-008",
+      "title": "TrackZero verified speaker adapter",
+      "origin": "original",
+      "sourcePartialPrEvidence": [
+        3
+      ]
+    },
+    {
+      "id": "MOE-009",
+      "title": "SceneSignal session adapter",
+      "origin": "original",
+      "sourcePartialPrEvidence": [
+        3
+      ]
+    },
+    {
+      "id": "MOE-010",
+      "title": "Stems sales and licenses",
+      "origin": "original"
+    },
+    {
+      "id": "MOE-011",
+      "title": "Canonical catalog and ISRC mappings",
+      "origin": "original",
+      "sourcePartialPrEvidence": [
+        2,
+        3
+      ]
+    },
+    {
+      "id": "MOE-012",
+      "title": "Materialized rollups and scale",
+      "origin": "original",
+      "sourcePartialPrEvidence": [
+        2
+      ]
+    },
+    {
+      "id": "MOE-013",
+      "title": "Revenue recognition and royalty splits",
+      "origin": "original"
+    },
+    {
+      "id": "MOE-014",
+      "title": "Signed webhooks and delivery queue",
+      "origin": "original",
+      "sourcePartialPrEvidence": [
+        3
+      ]
+    },
+    {
+      "id": "MOE-015",
+      "title": "Exports, alerts and acceptance",
+      "origin": "original"
+    },
+    {
+      "id": "MOE-016",
+      "title": "Label/family access and reporting",
+      "origin": "addition",
+      "pullRequests": [
+        2,
+        3
+      ]
+    }
+  ]
+}
