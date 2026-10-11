@@ -1,3 +1,5 @@
+> **Canonical planned-work registry:** [`registry/roadmap.json`](../registry/roadmap.json). This original detailed plan remains available; update new work and PR links only in the registry file.
+
 # Music Operations Engine — complete recovered development plan and cross-account handoff
 
 **Recovery source:** October 9, 2026 project conversation plus [original PR roadmap](../docs/roadmap.md). The first 15 milestone scopes were preserved, plus approved **item 16** for multi-label/family reporting. Milestone IDs are not GitHub PR numbers. Descriptive scopes/acceptance below supplement the original source, not verbatim quoted chat.
