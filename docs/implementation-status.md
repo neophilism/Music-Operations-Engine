@@ -7,6 +7,7 @@
 | [#1](https://github.com/neophilism/Music-Operations-Engine/pull/1) | Ingestion, PostgreSQL store, summaries, test foundation |
 | [#2](https://github.com/neophilism/Music-Operations-Engine/pull/2) | Label/family scopes, catalog mappings, access-scoped server keys and auditing |
 | [#3](https://github.com/neophilism/Music-Operations-Engine/pull/3) | Signed TrackZero/SceneSignal receivers, deduplication, reporting and producer SDK |
+| [#5](https://github.com/neophilism/Music-Operations-Engine/pull/5) | Administrator-provisioned interactive roles, label scopes and short-lived audited sessions |
 
 All three PRs have been merged into `main`. Earlier CI passed on each PR head. New deployments require independent verification, not just a passing PR check.
 
@@ -31,6 +32,6 @@ All three PRs have been merged into `main`. Earlier CI passed on each PR head. N
 
 ## Outstanding roadmap
 
-Interactive accounts and short-lived tokens; async jobs and recovery; encrypted provider-connector secrets; TooLost, music streaming and Stems adapters; source-side TrackZero/SceneSignal exporters; ticketing; collaborators/rights; materialized rollups; royalties and reconciliation; exports, alerts, acceptance and full production hardening.
+Account recovery, identity verification, MFA and production login rate limiting; async jobs; encrypted provider-connector secrets; TooLost, music streaming and Stems adapters; source-side TrackZero/SceneSignal exporters; ticketing; collaborators/rights; materialized rollups; royalties and reconciliation; exports, alerts, acceptance and full production hardening.
 
 **Security boundary:** Do not publish the Render service's database URL, bootstrap API key, scoped credentials, webhook secrets or private payloads. No audio/permit/listener identities belong in this reporting backend.

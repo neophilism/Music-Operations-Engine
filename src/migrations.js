@@ -40,6 +40,22 @@ export const migrations = [
       source text,activity_id text,type text NOT NULL,quantity bigint NOT NULL,metrics jsonb NOT NULL,
       PRIMARY KEY(source,activity_id));
     CREATE INDEX music_deliveries_received_at ON music_deliveries(received_at);
+  `},
+  {version:3,sql:`
+    CREATE TABLE music_accounts (
+      id text PRIMARY KEY,email text NOT NULL UNIQUE,password_salt char(32) NOT NULL,password_hash char(128) NOT NULL,
+      role text NOT NULL CHECK(role IN ('tenant_admin','label_manager','team_member','artist')),
+      label_ids text[] NOT NULL,disabled_at timestamptz,created_at timestamptz NOT NULL DEFAULT now(),
+      CHECK(email=lower(email)),
+      CHECK((role='tenant_admin' AND label_ids=ARRAY['*']::text[]) OR (role<>'tenant_admin' AND cardinality(label_ids)>0 AND NOT ('*'=ANY(label_ids))))
+    );
+    CREATE TABLE music_account_sessions (
+      id text PRIMARY KEY,account_id text NOT NULL REFERENCES music_accounts(id) ON DELETE CASCADE,
+      token_hash char(64) NOT NULL UNIQUE,created_at timestamptz NOT NULL,expires_at timestamptz NOT NULL,
+      revoked_at timestamptz,last_seen_at timestamptz NOT NULL,
+      CHECK(expires_at>created_at)
+    );
+    CREATE INDEX music_account_sessions_active ON music_account_sessions(account_id,expires_at) WHERE revoked_at IS NULL;
   `}
 ];
 

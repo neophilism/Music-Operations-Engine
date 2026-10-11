@@ -23,11 +23,12 @@
       "id": 2,
       "title": "Interactive accounts and short-lived tokens",
       "origin": "baseline",
-      "implementationStatus": "partial",
+      "implementationStatus": "implemented",
       "pullRequests": [
-        2
+        2,
+        5
       ],
-      "evidence": "Scoped server keys and registry audit implemented; interactive accounts and short-lived tokens remain."
+      "evidence": "Scoped server keys plus administrator-provisioned tenant, label, team and artist accounts, role-derived scopes, 15-minute hashed sessions, expiry, revocation and audit are implemented. Production recovery, identity verification, MFA and ingress rate limiting remain acceptance gates."
     },
     {
       "id": 3,
