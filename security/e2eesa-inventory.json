@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "repository": "neophilism/Music-Operations-Engine",
+  "classificationStatus": "unverified",
+  "coverageComplete": false,
+  "components": [],
+  "dataFlows": [],
+  "sourceObservations": [
+    {
+      "path": "README.md",
+      "blobSha": "0784ef5fe613e2086f05f57973355d79b0779601"
+    }
+  ],
+  "limitations": [
+    "This is a discovery placeholder, not a complete E2EESA component inventory or a claim that no protected flows exist.",
+    "Use the pinned upstream 0.2 component-inventory and scoped-assessment contracts for actual assessment."
+  ]
+}
