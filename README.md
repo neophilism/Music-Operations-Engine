@@ -26,3 +26,6 @@ PostgreSQL-backed ingest/resync jobs, bounded retries, dead-letter state and lab
 
 The receiver contracts are implemented; the app repositories still need live telemetry producers. See [implementation evidence and production gaps](docs/implementation-status.md). Provider-specific consumer experiences remain in their own repositories.
 \nProvider connector manifests, resumable backfill cursors, explicit field mappings and encrypted-at-rest credentials are documented in [connector manifests and credentials](docs/connectors.md). This contract does not imply a live provider connection.\n
+## End-to-End Everywhere progress
+
+The canonical [security/e2eesa-status.json](security/e2eesa-status.json) records standard implementation, complete testing and independent expert review separately. Engine Room reads it automatically from GitHub. All initial stages are pending; existing profile locks and approved decisions remain authoritative. Read [adoption and independent-account instructions](docs/E2EESA_ADOPTION.md), and run `python3 scripts/validate_e2eesa_status.py`. Record validation does not establish product security or certification.
