@@ -1,0 +1,42 @@
+version: 2.1
+jobs:
+  application-regressions:
+    docker:
+      - image: cimg/node:22.20.0
+    resource_class: small
+    steps:
+      - checkout
+      - run: npm ci --no-audit --no-fund
+      - run: npm test
+      - run: npm run check
+  real-postgres-tests:
+    docker:
+      - image: cimg/node:22.20.0
+      - image: postgres:16-alpine
+        environment:
+          POSTGRES_USER: music
+          POSTGRES_PASSWORD: test-only-password
+          POSTGRES_DB: music_test
+    resource_class: medium
+    environment:
+      TEST_DATABASE_URL: postgresql://music:test-only-password@127.0.0.1:5432/music_test
+    steps:
+      - checkout
+      - run: npm ci --no-audit --no-fund
+      - run: npm test
+  security-status-record:
+    docker:
+      - image: cimg/python:3.12
+    resource_class: small
+    steps:
+      - checkout
+      - run:
+          name: E2EESA status integrity (not certification)
+          command: python3 scripts/validate_e2eesa_status.py
+
+workflows:
+  complete-ci:
+    jobs:
+      - application-regressions
+      - real-postgres-tests
+      - security-status-record
