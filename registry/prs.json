@@ -1,9 +1,16 @@
 {
-  "schemaVersion": 1,
   "repository": "neophilism/Music-Operations-Engine",
-  "roadmapVersion": 1,
+  "title": "Music-Operations-Engine",
   "planVerified": true,
   "plannedPrCount": 16,
+  "sourceFiles": [
+    "docs/roadmap.json",
+    "docs/DEVELOPMENT_PLAN.md"
+  ],
+  "granularity": "planned milestone",
+  "scopeNote": "Partial package mapping does not count full implementation.",
+  "schemaVersion": 1,
+  "roadmapVersion": 1,
   "observedAt": "2026-10-11T17:38:37.702Z",
   "units": [
     {
@@ -12,7 +19,10 @@
       "origin": "original",
       "prs": [
         1
-      ]
+      ],
+      "dependsOn": [],
+      "externalDependencies": [],
+      "externalPrerequisites": []
     },
     {
       "id": "MOE-002",
@@ -21,7 +31,10 @@
       "prs": [
         2,
         5
-      ]
+      ],
+      "dependsOn": [],
+      "externalDependencies": [],
+      "externalPrerequisites": []
     },
     {
       "id": "MOE-003",
@@ -29,7 +42,10 @@
       "origin": "original",
       "prs": [
         6
-      ]
+      ],
+      "dependsOn": [],
+      "externalDependencies": [],
+      "externalPrerequisites": []
     },
     {
       "id": "MOE-004",
@@ -38,73 +54,125 @@
       "prs": [
         3,
         7
-      ]
+      ],
+      "dependsOn": [],
+      "externalDependencies": [],
+      "externalPrerequisites": []
     },
     {
       "id": "MOE-005",
       "title": "Distributor imports and settlements",
       "origin": "original",
-      "prs": []
+      "prs": [],
+      "dependsOn": [],
+      "externalDependencies": [],
+      "externalPrerequisites": []
     },
     {
       "id": "MOE-006",
       "title": "Authorized streaming-service reporting",
       "origin": "original",
-      "prs": []
+      "prs": [],
+      "dependsOn": [],
+      "externalDependencies": [],
+      "externalPrerequisites": []
     },
     {
       "id": "MOE-007",
       "title": "Ticketing and in-person events",
       "origin": "original",
-      "prs": []
+      "prs": [],
+      "dependsOn": [],
+      "externalDependencies": [],
+      "externalPrerequisites": []
     },
     {
       "id": "MOE-008",
       "title": "TrackZero verified speaker adapter",
       "origin": "original",
-      "prs": []
+      "prs": [],
+      "sourcePartialPrEvidence": [
+        3
+      ],
+      "dependsOn": [],
+      "externalDependencies": [],
+      "externalPrerequisites": []
     },
     {
       "id": "MOE-009",
       "title": "SceneSignal session adapter",
       "origin": "original",
-      "prs": []
+      "prs": [],
+      "sourcePartialPrEvidence": [
+        3
+      ],
+      "dependsOn": [],
+      "externalDependencies": [],
+      "externalPrerequisites": []
     },
     {
       "id": "MOE-010",
       "title": "Stems sales and licenses",
       "origin": "original",
-      "prs": []
+      "prs": [],
+      "dependsOn": [],
+      "externalDependencies": [],
+      "externalPrerequisites": []
     },
     {
       "id": "MOE-011",
       "title": "Canonical catalog and ISRC mappings",
       "origin": "original",
-      "prs": []
+      "prs": [],
+      "sourcePartialPrEvidence": [
+        2,
+        3
+      ],
+      "dependsOn": [],
+      "externalDependencies": [],
+      "externalPrerequisites": []
     },
     {
       "id": "MOE-012",
       "title": "Materialized rollups and scale",
       "origin": "original",
-      "prs": []
+      "prs": [],
+      "sourcePartialPrEvidence": [
+        2
+      ],
+      "dependsOn": [],
+      "externalDependencies": [],
+      "externalPrerequisites": []
     },
     {
       "id": "MOE-013",
       "title": "Revenue recognition and royalty splits",
       "origin": "original",
-      "prs": []
+      "prs": [],
+      "dependsOn": [],
+      "externalDependencies": [],
+      "externalPrerequisites": []
     },
     {
       "id": "MOE-014",
       "title": "Signed webhooks and delivery queue",
       "origin": "original",
-      "prs": []
+      "prs": [],
+      "sourcePartialPrEvidence": [
+        3
+      ],
+      "dependsOn": [],
+      "externalDependencies": [],
+      "externalPrerequisites": []
     },
     {
       "id": "MOE-015",
       "title": "Exports, alerts and acceptance",
       "origin": "original",
-      "prs": []
+      "prs": [],
+      "dependsOn": [],
+      "externalDependencies": [],
+      "externalPrerequisites": []
     },
     {
       "id": "MOE-016",
@@ -113,7 +181,10 @@
       "prs": [
         2,
         3
-      ]
+      ],
+      "dependsOn": [],
+      "externalDependencies": [],
+      "externalPrerequisites": []
     }
   ],
   "pullRequests": [
