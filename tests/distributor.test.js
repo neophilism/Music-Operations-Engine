@@ -15,5 +15,11 @@ test('invalid dates and duplicate transaction IDs rejected',()=>{
  assert.throws(()=>parse(csv().replace('2026-10-01','2026-02-30')));
  assert.throws(()=>parse(csv()+csv().split('\n')[1]+'\n'));
 });
+test('currencies without an implemented two-decimal minor unit fail closed',()=>{
+ for(const currency of ['JPY','KWD','XYZ'])
+  assert.throws(()=>parse(csv().replace(',USD,',','+currency+',')),/unsupported currency minor-unit exponent/);
+ for(const currency of ['EUR','GBP'])
+  assert.equal(parse(csv().replace(',USD,',','+currency+','))[0].currency,currency);
+});
 test('invalid money precision rejected',()=>assert.throws(()=>parse(csv().replace('1.25','1.256'))));
 test('no silent assumed column mapping',()=>assert.throws(()=>parseDistributorStatement(csv(),{labelId:'label_one'})));
