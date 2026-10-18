@@ -96,7 +96,9 @@ export async function normalizePlatformBatch(data,platform,store) {
       }
       if (raw.type === 'reward.redeemed') {
         requireThat(Boolean(fact.artistId),'Reward beneficiary artist required');identifier(raw.rewardId,'rewardId');
-        fact.type='reward';metrics.pointsSpentMicrounits=integer(raw.pointsMicrounits,'pointsMicrounits',{max:10n**255n}).toString();
+        fact.type='reward';const spent=integer(raw.pointsMicrounits,'pointsMicrounits',{max:10n**255n});
+        requireThat(spent > 0n,'Redeemed reward points must be positive');
+        metrics.pointsSpentMicrounits=spent.toString();
       }
       if (raw.type === 'groove.granted') {
         requireThat(Boolean(fact.trackId),'Groove recording required');identifier(raw.opportunityId,'opportunityId');fact.type='groove';
