@@ -60,7 +60,7 @@ All events require `sessionId`. Session activity also requires `authorizationSta
 
 The producer enforces the uploaded-permit or specific no-permit-required attestation and its lifetime. Operations receives only status metadata, never the permit or its contents. Commerce may be reported after the physical session authorization expires; it does not reactivate the venue.
 
-Session IDs are globally stable within SceneSignal. A family sees a shared session once even when multiple labels' recordings appeared there. Reused attendance-report and speaker-report IDs must describe the same physical measurement across labels; conflicting copies are rejected atomically. Same-ID copies count once in the combined report but remain visible in each label's association. Attendance is a delta, not repeated cumulative snapshots. Attendance totals are **entries**, not identified unique people or a claim that the label's music was heard. Speaker totals sum interval contributions, not unique physical devices across the entire reporting period.
+Session IDs are globally stable within SceneSignal. A family sees a shared session once even when multiple labels' recordings appeared there. Reused attendance-report and speaker-report IDs must describe the same physical measurement across labels; conflicting copies are rejected atomically. Same-ID copies count once in the combined report but remain visible in each label's association. Attendance is a positive delta, not a zero-entry record or repeated cumulative snapshot. Attendance totals are **entries**, not identified unique people or a claim that the label's music was heard. Speaker totals sum interval contributions, not unique physical devices across the entire reporting period.
 
 ## Reports and freshness
 

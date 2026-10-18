@@ -113,7 +113,8 @@ export async function normalizePlatformBatch(data,platform,store) {
       if (raw.type === 'session.music_played') {requireThat(Boolean(fact.trackId),'Recording identity required');fact.metadata.scene.musicMs=duration(raw.durationMs).toString();}
       if (raw.type === 'session.attendance') {
         requireThat(raw.reportingMode === 'delta','Attendance must be a delta report, not a cumulative snapshot');
-        fact.type='attendance';fact.quantity=exact(integer(raw.quantity,'quantity'));
+        const entries=integer(raw.quantity,'quantity');requireThat(entries > 0n,'Attendance delta must be positive');
+        fact.type='attendance';fact.quantity=exact(entries);
         fact.metadata.logicalActivityId='attendance:'+sessionId+':'+id;
       }
       if (raw.type === 'session.speaker_contribution') {
