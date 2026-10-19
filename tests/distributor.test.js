@@ -120,3 +120,21 @@ test('reversal links one exact prior transaction and invalidates recorded amount
   const missing={...reversal,statementId:'missing',csv:reversalCsv.replace('a1\n','absent\n').replace('rev1,','rev3,')};
   assert.equal((await api.request('/v1/distributor/statements',{key:secrets.alpha,body:missing})).status,422);
 });
+
+test('non-reversal money signs and external evidence flags fail closed',async t=>{
+  assert.throws(()=>parse(csv().replace('1.25','-1.25').replace('0.10','-0.10').replace('1.15','-1.15')),/nonnegative/);
+  const f=await fixture();t.after(()=>f.close());await labels(f.store);
+  await f.store.putCatalog({labelId:'alpha',id:'artist',kind:'artist',name:'Artist'});
+  await f.store.putCatalog({labelId:'alpha',id:'release',kind:'release',name:'Release',artistId:'artist'});
+  await f.store.putCatalog({labelId:'alpha',id:'track',kind:'track',name:'Track',artistId:'artist',releaseId:'release',isrc:'USABC1234567'});
+  const api=await serve(f.store);t.after(()=>api.close());
+  const body={labelId:'alpha',source:'toolost_export',statementId:'flags',csv:csv('settled','1.15','settle_1'),mapping};
+  assert.equal((await api.request('/v1/distributor/statements',{key:secrets.alpha,body})).status,200);
+  const row=(await api.request('/v1/distributor/rows?labelId=alpha',{key:secrets.alpha})).body.rows[0];
+  assert.equal(row.provenance,'imported_csv');assert.equal(row.isLive,false);assert.equal(row.bankVerified,false);
+  const match={labelId:'alpha',source:'toolost_export',settlementId:'settle_1',invoiceId:'invoice_1',
+    invoiceMinor:'115',bankTransactionId:'bank_1',bankMinor:'115'};
+  assert.equal((await api.request('/v1/distributor/reconciliations',{body:match})).status,200);
+  const record=(await api.request('/v1/distributor/reconciliations?labelId=alpha',{key:secrets.alpha})).body.reconciliations[0];
+  assert.equal(record.bankVerified,false);assert.equal(record.evidenceStatus,'operator_recorded_amount_match');
+});

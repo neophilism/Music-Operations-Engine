@@ -177,6 +177,7 @@ FROM music_distributor_reconciliations WHERE label_id=$1 AND source=$2 AND provi
 r.currency,r.provider_minor::text AS "providerMinor",r.invoice_id AS "invoiceId",
 r.invoice_minor::text AS "invoiceMinor",r.bank_transaction_id AS "bankTransactionId",
 r.bank_minor::text AS "bankMinor",r.row_count AS "rowCount",r.recorded_at AS "recordedAt",
+'operator_recorded_amount_match' AS "evidenceStatus",false AS "bankVerified",
 COALESCE((SELECT count(*)=r.row_count AND sum(d.net_minor)=r.provider_minor
   AND bool_and(d.provider_status='settled') AND bool_and(d.currency=r.currency)
   FROM music_distributor_rows d WHERE d.label_id=r.label_id AND d.source=r.source
@@ -197,7 +198,8 @@ ORDER BY r.recorded_at DESC,r.provider_settlement_id DESC LIMIT $3`,[labelIds,so
 isrc,artist_id AS "artistId",release_id AS "releaseId",track_id AS "trackId",occurred_at AS "occurredAt",
 currency,gross_minor::text AS "grossMinor",fees_minor::text AS "feesMinor",net_minor::text AS "netMinor",
 provider_status AS "providerStatus",provider_settlement_id AS "providerSettlementId",
-reverses_external_id AS "reversesExternalId",imported_at AS "importedAt"
+reverses_external_id AS "reversesExternalId",imported_at AS "importedAt",
+'imported_csv' AS provenance,false AS "isLive",false AS "bankVerified"
 FROM music_distributor_rows WHERE label_id=ANY($1::text[]) AND ($2::text IS NULL OR source=$2)
 ORDER BY imported_at DESC,id DESC LIMIT $3`,[labelIds,source,limit])).rows;
     },

@@ -55,6 +55,8 @@ export function parseDistributorStatement(csv,{labelId,source='distributor_csv',
     const feesMinor=BigInt(minorUnits(row[mapping.fees],'fees',exponent));
     const netMinor=BigInt(minorUnits(row[mapping.net],'net',exponent));
     requireThat(grossMinor-feesMinor===netMinor,'gross minus fees must equal net');
+    requireThat(payoutStatus==='reversed' || (grossMinor>=0n && feesMinor>=0n && netMinor>=0n),
+      'non-reversal amounts must be nonnegative');
     const reversesExternalId=mapping.reversesExternalId ? String(row[mapping.reversesExternalId]??'').trim() : '';
     requireThat(payoutStatus==='reversed' ? reversesExternalId.length>0 : reversesExternalId.length===0,
       'only reversed rows require an original transaction reference');
