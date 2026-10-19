@@ -31,7 +31,7 @@ function date(raw,name) {
  * Rows are normalized, not posted to the royalty ledger.
  */
 export function parseDistributorStatement(csv,{labelId,source='distributor_csv',mapping}={}) {
-  requireThat(typeof csv==='string','CSV statement text is required');
+  requireThat(typeof csv==='string','CSV statement text is required',400);
   labelId=identifier(labelId,'labelId');
   source=identifier(source,'source');
   requireThat(mapping && typeof mapping==='object' && !Array.isArray(mapping),'explicit column mapping required');
