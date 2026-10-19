@@ -138,3 +138,20 @@ test('non-reversal money signs and external evidence flags fail closed',async t=
   const record=(await api.request('/v1/distributor/reconciliations?labelId=alpha',{key:secrets.alpha})).body.reconciliations[0];
   assert.equal(record.bankVerified,false);assert.equal(record.evidenceStatus,'operator_recorded_amount_match');
 });
+
+test('out-of-order original and reversal in one statement link after atomic insertion',async t=>{
+  const f=await fixture();t.after(()=>f.close());await labels(f.store);
+  await f.store.putCatalog({labelId:'alpha',id:'artist',kind:'artist',name:'Artist'});
+  await f.store.putCatalog({labelId:'alpha',id:'release',kind:'release',name:'Release',artistId:'artist'});
+  await f.store.putCatalog({labelId:'alpha',id:'track',kind:'track',name:'Track',artistId:'artist',releaseId:'release',isrc:'USABC1234567'});
+  const api=await serve(f.store);t.after(()=>api.close());
+  const body={labelId:'alpha',source:'toolost_export',statementId:'out-of-order',
+    csv:'Transaction,Date,ISRC,Currency,Gross,Fees,Net,Status,Settlement,Reverses\n'
+      +'rev1,2026-10-02,USABC1234567,USD,-1.25,-0.10,-1.15,reversed,,a1\n'
+      +'a1,2026-10-01,USABC1234567,USD,1.25,0.10,1.15,reported,,\n',
+    mapping:{...mapping,reversesExternalId:'Reverses'}};
+  const imported=await api.request('/v1/distributor/statements',{key:secrets.alpha,body});
+  assert.equal(imported.status,200);assert.equal(imported.body.import.accepted,2);
+  assert.equal((await api.request('/v1/distributor/rows?labelId=alpha',{key:secrets.alpha})).body.rows.length,2);
+  assert.equal((await api.request('/v1/distributor/statements',{key:secrets.alpha,body:{...body,statementId:'invalid',csv:42}})).status,400);
+});
