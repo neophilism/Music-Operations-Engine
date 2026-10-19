@@ -121,6 +121,16 @@ export const migrations = [
       UNIQUE(label_id,bank_transaction_id),
       UNIQUE(label_id,invoice_id)
     );
+  `},
+
+  {version:8,sql:`
+    ALTER TABLE music_distributor_rows ADD COLUMN reverses_external_id text;
+    ALTER TABLE music_distributor_rows ADD CONSTRAINT music_distributor_reversal_original
+      FOREIGN KEY(label_id,source,reverses_external_id)
+      REFERENCES music_distributor_rows(label_id,source,external_id) DEFERRABLE INITIALLY DEFERRED;
+    CREATE UNIQUE INDEX music_distributor_one_reversal
+      ON music_distributor_rows(label_id,source,reverses_external_id)
+      WHERE reverses_external_id IS NOT NULL;
   `}
 ];
 

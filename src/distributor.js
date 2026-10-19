@@ -54,12 +54,17 @@ export function parseDistributorStatement(csv,{labelId,source='distributor_csv',
     const feesMinor=BigInt(cents(row[mapping.fees],'fees'));
     const netMinor=BigInt(cents(row[mapping.net],'net'));
     requireThat(grossMinor-feesMinor===netMinor,'gross minus fees must equal net');
+    const reversesExternalId=mapping.reversesExternalId ? String(row[mapping.reversesExternalId]??'').trim() : '';
+    requireThat(payoutStatus==='reversed' ? reversesExternalId.length>0 : reversesExternalId.length===0,
+      'only reversed rows require an original transaction reference');
+    requireThat(reversesExternalId.length<=256 && reversesExternalId!==externalId,'invalid reversal reference');
+    requireThat(payoutStatus!=='reversed' || netMinor<0n,'reversal net must be negative');
     const settlementId=mapping.settlementId ? String(row[mapping.settlementId]??'').trim() : '';
     requireThat(settlementId.length<=256,'settlement reference is too long');
     requireThat(payoutStatus!=='settled'||settlementId.length>0,'settled row requires settlement reference');
     const id=createHash('sha256').update([labelId,source,externalId].join('\0')).digest('hex');
     return {id,labelId,source,externalId,isrc,occurredAt:date(row[mapping.occurredAt],'occurredAt'),
       currency,grossMinor:grossMinor.toString(),feesMinor:feesMinor.toString(),netMinor:netMinor.toString(),
-      payoutStatus,settlementId:settlementId||null,provenance:'imported_csv',isLive:false};
+      payoutStatus,settlementId:settlementId||null,reversesExternalId:reversesExternalId||null,provenance:'imported_csv',isLive:false};
   });
 }

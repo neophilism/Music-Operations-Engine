@@ -92,17 +92,26 @@ FROM music_catalog WHERE label_id=$1 AND kind='track' AND isrc=$2`,[labelId,row.
           const rowHash=createHash('sha256').update(JSON.stringify(row)).digest('hex');
           const saved=await c.query(`INSERT INTO music_distributor_rows
 (id,label_id,source,external_id,statement_id,isrc,artist_id,release_id,track_id,occurred_at,currency,
- gross_minor,fees_minor,net_minor,provider_status,provider_settlement_id,row_hash)
-VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+ gross_minor,fees_minor,net_minor,provider_status,provider_settlement_id,reverses_external_id,row_hash)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
 ON CONFLICT(label_id,source,external_id) DO NOTHING RETURNING id`,
             [row.id,labelId,source,row.externalId,statementId,row.isrc,track.artistId,track.releaseId,track.id,
-              row.occurredAt,row.currency,row.grossMinor,row.feesMinor,row.netMinor,row.payoutStatus,row.settlementId,rowHash]);
+              row.occurredAt,row.currency,row.grossMinor,row.feesMinor,row.netMinor,row.payoutStatus,row.settlementId,row.reversesExternalId,rowHash]);
           if(saved.rows.length) accepted++;
           else {
             const previous=(await c.query('SELECT row_hash FROM music_distributor_rows WHERE label_id=$1 AND source=$2 AND external_id=$3',
               [labelId,source,row.externalId])).rows[0];
             requireThat(previous?.row_hash===rowHash,'Distributor transaction id was reused with different content',409);
           }
+        }
+        for(const row of rows.filter(r=>r.reversesExternalId)) {
+          const original=(await c.query(`SELECT isrc,currency,net_minor::text AS "netMinor",provider_status AS "providerStatus"
+FROM music_distributor_rows WHERE label_id=$1 AND source=$2 AND external_id=$3 FOR UPDATE`,
+            [labelId,source,row.reversesExternalId])).rows[0];
+          requireThat(original && original.providerStatus!=='reversed' && original.isrc===row.isrc
+            && original.currency===row.currency && BigInt(original.netMinor)>0n
+            && BigInt(row.netMinor)===-BigInt(original.netMinor),
+            'Reversal must exactly negate an existing non-reversal transaction for the same track and currency',422);
         }
         await audit(c,actor,'distributor.statement.imported',[labelId],{source,statementId,accepted,duplicates:rows.length-accepted});
         return {statementId,accepted,duplicates:rows.length-accepted,duplicateStatement:false};
@@ -128,6 +137,11 @@ ORDER BY id`,[labelId,source,settlementId])).rows;
         requireThat(sourceRows.every(r=>r.providerStatus==='settled'),'Settlement contains an unsettled or reversed row',422);
         const currency=sourceRows[0].currency;
         requireThat(sourceRows.every(r=>r.currency===currency),'Settlement mixes currencies',422);
+        const reversal=(await c.query(`SELECT 1 FROM music_distributor_rows d JOIN music_distributor_rows original
+ON original.label_id=d.label_id AND original.source=d.source AND original.external_id=d.reverses_external_id
+WHERE original.label_id=$1 AND original.source=$2 AND original.provider_settlement_id=$3 LIMIT 1`,
+          [labelId,source,settlementId])).rows[0];
+        requireThat(!reversal,'Settlement includes a reversed transaction',422);
         const providerMinor=sourceRows.reduce((sum,r)=>sum+BigInt(r.netMinor),0n);
         requireThat(providerMinor>0n && providerMinor===invoiceMinor && providerMinor===bankMinor,
           'Provider, invoice and recorded bank amounts do not match',422);
@@ -166,7 +180,12 @@ r.bank_minor::text AS "bankMinor",r.row_count AS "rowCount",r.recorded_at AS "re
 COALESCE((SELECT count(*)=r.row_count AND sum(d.net_minor)=r.provider_minor
   AND bool_and(d.provider_status='settled') AND bool_and(d.currency=r.currency)
   FROM music_distributor_rows d WHERE d.label_id=r.label_id AND d.source=r.source
-    AND d.provider_settlement_id=r.provider_settlement_id),false) AS "currentSourceMatch"
+    AND d.provider_settlement_id=r.provider_settlement_id),false)
+AND NOT EXISTS (SELECT 1 FROM music_distributor_rows reversal JOIN music_distributor_rows original
+  ON original.label_id=reversal.label_id AND original.source=reversal.source
+  AND original.external_id=reversal.reverses_external_id
+  WHERE original.label_id=r.label_id AND original.source=r.source
+  AND original.provider_settlement_id=r.provider_settlement_id) AS "currentSourceMatch"
 FROM music_distributor_reconciliations r WHERE r.label_id=ANY($1::text[])
 AND ($2::text IS NULL OR r.source=$2)
 ORDER BY r.recorded_at DESC,r.provider_settlement_id DESC LIMIT $3`,[labelIds,source,limit])).rows;
@@ -177,7 +196,8 @@ ORDER BY r.recorded_at DESC,r.provider_settlement_id DESC LIMIT $3`,[labelIds,so
       return (await pool.query(`SELECT id,label_id AS "labelId",source,external_id AS "externalId",statement_id AS "statementId",
 isrc,artist_id AS "artistId",release_id AS "releaseId",track_id AS "trackId",occurred_at AS "occurredAt",
 currency,gross_minor::text AS "grossMinor",fees_minor::text AS "feesMinor",net_minor::text AS "netMinor",
-provider_status AS "providerStatus",provider_settlement_id AS "providerSettlementId",imported_at AS "importedAt"
+provider_status AS "providerStatus",provider_settlement_id AS "providerSettlementId",
+reverses_external_id AS "reversesExternalId",imported_at AS "importedAt"
 FROM music_distributor_rows WHERE label_id=ANY($1::text[]) AND ($2::text IS NULL OR source=$2)
 ORDER BY imported_at DESC,id DESC LIMIT $3`,[labelIds,source,limit])).rows;
     },

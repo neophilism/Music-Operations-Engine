@@ -90,3 +90,28 @@ test('operator-recorded settlement amount match stays separate from bank verific
   assert.equal((await api.request('/v1/distributor/statements',{key:secrets.alpha,body:second})).status,200);
   assert.equal((await api.request('/v1/distributor/reconciliations',{body:{...match,settlementId:'settle_2',invoiceId:'invoice_2'}})).status,409);
 });
+
+test('reversal links one exact prior transaction and invalidates recorded amount match',async t=>{
+  const f=await fixture();t.after(()=>f.close());await labels(f.store);
+  await f.store.putCatalog({labelId:'alpha',id:'artist',kind:'artist',name:'Artist'});
+  await f.store.putCatalog({labelId:'alpha',id:'release',kind:'release',name:'Release',artistId:'artist'});
+  await f.store.putCatalog({labelId:'alpha',id:'track',kind:'track',name:'Track',artistId:'artist',releaseId:'release',isrc:'USABC1234567'});
+  const api=await serve(f.store);t.after(()=>api.close());
+  const original={labelId:'alpha',source:'toolost_export',statementId:'original',csv:csv('settled','1.15','settle_1'),mapping};
+  assert.equal((await api.request('/v1/distributor/statements',{key:secrets.alpha,body:original})).status,200);
+  const match={labelId:'alpha',source:'toolost_export',settlementId:'settle_1',invoiceId:'invoice_1',
+    invoiceMinor:'115',bankTransactionId:'bank_1',bankMinor:'115'};
+  assert.equal((await api.request('/v1/distributor/reconciliations',{body:match})).status,200);
+  const reversalCsv='Transaction,Date,ISRC,Currency,Gross,Fees,Net,Status,Settlement,Reverses\n'
+    +'rev1,2026-10-02,USABC1234567,USD,-1.25,-0.10,-1.15,reversed,,a1\n';
+  const reversal={...original,statementId:'reversal',csv:reversalCsv,mapping:{...mapping,reversesExternalId:'Reverses'}};
+  assert.equal((await api.request('/v1/distributor/statements',{key:secrets.alpha,body:reversal})).status,200);
+  const listed=await api.request('/v1/distributor/reconciliations?labelId=alpha',{key:secrets.alpha});
+  assert.equal(listed.body.reconciliations[0].currentSourceMatch,false);
+  const rows=await api.request('/v1/distributor/rows?labelId=alpha',{key:secrets.alpha});
+  assert.ok(rows.body.rows.some(r=>r.reversesExternalId==='a1'));
+  const duplicate={...reversal,statementId:'duplicate',csv:reversalCsv.replace('rev1,','rev2,')};
+  assert.equal((await api.request('/v1/distributor/statements',{key:secrets.alpha,body:duplicate})).status,409);
+  const missing={...reversal,statementId:'missing',csv:reversalCsv.replace('a1\n','absent\n').replace('rev1,','rev3,')};
+  assert.equal((await api.request('/v1/distributor/statements',{key:secrets.alpha,body:missing})).status,422);
+});
