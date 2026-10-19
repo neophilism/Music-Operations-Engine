@@ -47,6 +47,8 @@ export function parseDistributorStatement(csv,{labelId,source='distributor_csv',
     seen.add(externalId);
     const isrc=nonempty(row[mapping.isrc],'ISRC',12).toUpperCase();
     requireThat(/^[A-Z]{2}[A-Z0-9]{3}\d{7}$/.test(isrc),'invalid ISRC');
+    const upc=mapping.upc ? nonempty(row[mapping.upc],'UPC',13) : null;
+    requireThat(!upc || /^\d{12,13}$/.test(upc),'invalid release UPC');
     const currency=nonempty(row[mapping.currency],'currency',3).toUpperCase();
     const exponent=currencyExponent.get(currency);
     requireThat(exponent!==undefined,'unsupported currency minor-unit exponent');
@@ -67,7 +69,7 @@ export function parseDistributorStatement(csv,{labelId,source='distributor_csv',
     requireThat(settlementId.length<=256,'settlement reference is too long');
     requireThat(payoutStatus!=='settled'||settlementId.length>0,'settled row requires settlement reference');
     const id=createHash('sha256').update([labelId,source,externalId].join('\0')).digest('hex');
-    return {id,labelId,source,externalId,isrc,occurredAt:date(row[mapping.occurredAt],'occurredAt'),
+    return {id,labelId,source,externalId,isrc,upc,occurredAt:date(row[mapping.occurredAt],'occurredAt'),
       currency,grossMinor:grossMinor.toString(),feesMinor:feesMinor.toString(),netMinor:netMinor.toString(),
       payoutStatus,settlementId:settlementId||null,reversesExternalId:reversesExternalId||null,provenance:'imported_csv',isLive:false};
   });

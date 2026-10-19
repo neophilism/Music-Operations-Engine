@@ -155,3 +155,22 @@ test('out-of-order original and reversal in one statement link after atomic inse
   assert.equal((await api.request('/v1/distributor/rows?labelId=alpha',{key:secrets.alpha})).body.rows.length,2);
   assert.equal((await api.request('/v1/distributor/statements',{key:secrets.alpha,body:{...body,statementId:'invalid',csv:42}})).status,400);
 });
+
+test('optional provider UPC must match the release linked to the ISRC',async t=>{
+  const f=await fixture();t.after(()=>f.close());await labels(f.store);
+  await f.store.putCatalog({labelId:'alpha',id:'artist',kind:'artist',name:'Artist'});
+  await f.store.putCatalog({labelId:'alpha',id:'release',kind:'release',name:'Release',artistId:'artist',upc:'012345678901'});
+  await f.store.putCatalog({labelId:'alpha',id:'track',kind:'track',name:'Track',artistId:'artist',releaseId:'release',isrc:'USABC1234567'});
+  const api=await serve(f.store);t.after(()=>api.close());
+  const body={labelId:'alpha',source:'toolost_export',statementId:'with-upc',mapping:{...mapping,upc:'UPC'},
+    csv:'Transaction,Date,ISRC,Currency,Gross,Fees,Net,Status,Settlement,UPC\n'
+      +'a1,2026-10-01,USABC1234567,USD,1.25,0.10,1.15,pending,,012345678901\n'};
+  assert.equal((await api.request('/v1/distributor/statements',{key:secrets.alpha,body})).status,200);
+  const row=(await api.request('/v1/distributor/rows?labelId=alpha',{key:secrets.alpha})).body.rows[0];
+  assert.equal(row.upc,'012345678901');assert.equal(row.releaseId,'release');
+  const mismatch={...body,statementId:'bad-upc',csv:body.csv.replace('a1,','a2,').replace('012345678901','999999999999')};
+  assert.equal((await api.request('/v1/distributor/statements',{key:secrets.alpha,body:mismatch})).status,422);
+  const malformed={...body,statementId:'malformed-upc',csv:body.csv.replace('a1,','a3,').replace('012345678901','123')};
+  assert.equal((await api.request('/v1/distributor/statements',{key:secrets.alpha,body:malformed})).status,422);
+  assert.equal((await api.request('/v1/distributor/rows?labelId=alpha',{key:secrets.alpha})).body.rows.length,1);
+});

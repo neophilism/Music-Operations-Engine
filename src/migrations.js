@@ -131,6 +131,12 @@ export const migrations = [
     CREATE UNIQUE INDEX music_distributor_one_reversal
       ON music_distributor_rows(label_id,source,reverses_external_id)
       WHERE reverses_external_id IS NOT NULL;
+  `},
+
+  {version:9,sql:`
+    ALTER TABLE music_distributor_rows ADD COLUMN provider_upc text;
+    ALTER TABLE music_distributor_rows ADD CONSTRAINT music_distributor_provider_upc_format
+      CHECK(provider_upc IS NULL OR provider_upc ~ '^[0-9]{12,13}$');
   `}
 ];
 

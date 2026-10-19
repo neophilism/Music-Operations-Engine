@@ -58,7 +58,7 @@ export async function createStore(pool,{connectorKey}={}) {
         requireThat((!f.releaseId || track.releaseId === f.releaseId) && (!f.artistId || track.artistId === f.artistId),'Track attribution does not match its catalog');
       }
       await client.query(`INSERT INTO music_facts(id,label_id,source,external_id,type,occurred_at,quantity,amount_minor,currency,artist,release_title,track,channel,territory,artist_id,release_id,track_id,metadata)
-VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
 ON CONFLICT(label_id,source,external_id) DO UPDATE SET type=EXCLUDED.type,occurred_at=EXCLUDED.occurred_at,
 quantity=EXCLUDED.quantity,amount_minor=EXCLUDED.amount_minor,currency=EXCLUDED.currency,artist=EXCLUDED.artist,
 release_title=EXCLUDED.release_title,track=EXCLUDED.track,channel=EXCLUDED.channel,territory=EXCLUDED.territory,
@@ -85,18 +85,21 @@ VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING RETURNING statement_id`,
         }
         let accepted=0;
         for(const row of rows) {
-          const matches=(await c.query(`SELECT id,artist_id AS "artistId",release_id AS "releaseId"
-FROM music_catalog WHERE label_id=$1 AND kind='track' AND isrc=$2`,[labelId,row.isrc])).rows;
+          const matches=(await c.query(`SELECT track.id,track.artist_id AS "artistId",track.release_id AS "releaseId",release.upc AS "releaseUpc"
+FROM music_catalog track JOIN music_catalog release
+ON release.label_id=track.label_id AND release.id=track.release_id
+WHERE track.label_id=$1 AND track.kind='track' AND track.isrc=$2`,[labelId,row.isrc])).rows;
           requireThat(matches.length===1,'ISRC must resolve to exactly one track in the statement label',422);
           const track=matches[0];
+          requireThat(!row.upc || track.releaseUpc===row.upc,'UPC does not match the ISRC track release',422);
           const rowHash=createHash('sha256').update(JSON.stringify(row)).digest('hex');
           const saved=await c.query(`INSERT INTO music_distributor_rows
 (id,label_id,source,external_id,statement_id,isrc,artist_id,release_id,track_id,occurred_at,currency,
- gross_minor,fees_minor,net_minor,provider_status,provider_settlement_id,reverses_external_id,row_hash)
-VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+ gross_minor,fees_minor,net_minor,provider_status,provider_settlement_id,reverses_external_id,provider_upc,row_hash)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
 ON CONFLICT(label_id,source,external_id) DO NOTHING RETURNING id`,
             [row.id,labelId,source,row.externalId,statementId,row.isrc,track.artistId,track.releaseId,track.id,
-              row.occurredAt,row.currency,row.grossMinor,row.feesMinor,row.netMinor,row.payoutStatus,row.settlementId,row.reversesExternalId,rowHash]);
+              row.occurredAt,row.currency,row.grossMinor,row.feesMinor,row.netMinor,row.payoutStatus,row.settlementId,row.reversesExternalId,row.upc,rowHash]);
           if(saved.rows.length) accepted++;
           else {
             const previous=(await c.query('SELECT row_hash FROM music_distributor_rows WHERE label_id=$1 AND source=$2 AND external_id=$3',
@@ -195,7 +198,7 @@ ORDER BY r.recorded_at DESC,r.provider_settlement_id DESC LIMIT $3`,[labelIds,so
       requireThat(Array.isArray(labelIds),'Distributor rows require an explicit label scope');
       requireThat(Number.isInteger(limit) && limit>=1 && limit<=1000,'limit must be 1–1000',400);
       return (await pool.query(`SELECT id,label_id AS "labelId",source,external_id AS "externalId",statement_id AS "statementId",
-isrc,artist_id AS "artistId",release_id AS "releaseId",track_id AS "trackId",occurred_at AS "occurredAt",
+isrc,provider_upc AS upc,artist_id AS "artistId",release_id AS "releaseId",track_id AS "trackId",occurred_at AS "occurredAt",
 currency,gross_minor::text AS "grossMinor",fees_minor::text AS "feesMinor",net_minor::text AS "netMinor",
 provider_status AS "providerStatus",provider_settlement_id AS "providerSettlementId",
 reverses_external_id AS "reversesExternalId",imported_at AS "importedAt",
