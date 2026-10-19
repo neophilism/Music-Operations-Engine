@@ -2,7 +2,7 @@ import pg from 'pg';
 import {migrate} from './migrations.js';
 import {normalizeLabel,normalizeFamily,normalizeCatalog} from './catalog.js';
 import {ApiError,requireThat} from './errors.js';
-import {exact,identifier} from './validation.js';
+import {exact,identifier,integer} from './validation.js';
 import {parseDistributorStatement} from './distributor.js';
 import {issueBearer,normalizeAccount,passwordDigest,passwordMatches,principalFromAccount,tokenDigest} from './accounts.js';
 import {createHash,randomUUID} from 'node:crypto';
@@ -107,6 +107,69 @@ ON CONFLICT(label_id,source,external_id) DO NOTHING RETURNING id`,
         await audit(c,actor,'distributor.statement.imported',[labelId],{source,statementId,accepted,duplicates:rows.length-accepted});
         return {statementId,accepted,duplicates:rows.length-accepted,duplicateStatement:false};
       });
+    },
+    async recordDistributorReconciliation(raw,actor='system') {
+      const labelId=identifier(raw.labelId,'labelId'),source=identifier(raw.source,'source');
+      function reference(value,name) {
+        requireThat(typeof value==='string' && value.trim().length>0 && value.trim().length<=200,name+' is required');
+        return value.trim();
+      }
+      const settlementId=reference(raw.settlementId,'settlementId');
+      const invoiceId=reference(raw.invoiceId,'invoiceId');
+      const bankTransactionId=reference(raw.bankTransactionId,'bankTransactionId');
+      const invoiceMinor=integer(raw.invoiceMinor,'invoiceMinor');
+      const bankMinor=integer(raw.bankMinor,'bankMinor');
+      requireThat(invoiceMinor>0n && bankMinor>0n,'Reconciliation amounts must be positive');
+      return transaction(async c=>{
+        const sourceRows=(await c.query(`SELECT currency,net_minor::text AS "netMinor",provider_status AS "providerStatus"
+FROM music_distributor_rows WHERE label_id=$1 AND source=$2 AND provider_settlement_id=$3
+ORDER BY id`,[labelId,source,settlementId])).rows;
+        requireThat(sourceRows.length>0,'Provider settlement reference has no imported rows',422);
+        requireThat(sourceRows.every(r=>r.providerStatus==='settled'),'Settlement contains an unsettled or reversed row',422);
+        const currency=sourceRows[0].currency;
+        requireThat(sourceRows.every(r=>r.currency===currency),'Settlement mixes currencies',422);
+        const providerMinor=sourceRows.reduce((sum,r)=>sum+BigInt(r.netMinor),0n);
+        requireThat(providerMinor>0n && providerMinor===invoiceMinor && providerMinor===bankMinor,
+          'Provider, invoice and recorded bank amounts do not match',422);
+        const saved=await c.query(`INSERT INTO music_distributor_reconciliations
+(label_id,source,provider_settlement_id,currency,provider_minor,invoice_id,invoice_minor,
+ bank_transaction_id,bank_minor,row_count,recorded_by)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+ON CONFLICT(label_id,source,provider_settlement_id) DO NOTHING RETURNING provider_settlement_id`,
+          [labelId,source,settlementId,currency,String(providerMinor),invoiceId,String(invoiceMinor),
+            bankTransactionId,String(bankMinor),sourceRows.length,actor]);
+        if(!saved.rows.length) {
+          const previous=(await c.query(`SELECT currency,provider_minor::text AS "providerMinor",invoice_id AS "invoiceId",
+invoice_minor::text AS "invoiceMinor",bank_transaction_id AS "bankTransactionId",bank_minor::text AS "bankMinor",row_count AS "rowCount"
+FROM music_distributor_reconciliations WHERE label_id=$1 AND source=$2 AND provider_settlement_id=$3`,
+            [labelId,source,settlementId])).rows[0];
+          requireThat(previous && previous.currency===currency && previous.providerMinor===String(providerMinor)
+            && previous.invoiceId===invoiceId && previous.invoiceMinor===String(invoiceMinor)
+            && previous.bankTransactionId===bankTransactionId && previous.bankMinor===String(bankMinor)
+            && previous.rowCount===sourceRows.length,'Settlement reference was reused with different reconciliation evidence',409);
+        } else {
+          await audit(c,actor,'distributor.reconciliation.recorded',[labelId],
+            {source,settlementId,currency,invoiceId,bankTransactionId,rowCount:sourceRows.length});
+        }
+        return {labelId,source,settlementId,currency,providerMinor:String(providerMinor),
+          invoiceId,invoiceMinor:String(invoiceMinor),bankTransactionId,bankMinor:String(bankMinor),
+          rowCount:sourceRows.length,duplicate:!saved.rows.length,evidenceStatus:'operator_recorded_amount_match'};
+      });
+    },
+    async distributorReconciliations({labelIds,source=null,limit=100}) {
+      requireThat(Array.isArray(labelIds),'Reconciliations require an explicit label scope');
+      requireThat(Number.isInteger(limit) && limit>=1 && limit<=1000,'limit must be 1–1000',400);
+      return (await pool.query(`SELECT r.label_id AS "labelId",r.source,r.provider_settlement_id AS "settlementId",
+r.currency,r.provider_minor::text AS "providerMinor",r.invoice_id AS "invoiceId",
+r.invoice_minor::text AS "invoiceMinor",r.bank_transaction_id AS "bankTransactionId",
+r.bank_minor::text AS "bankMinor",r.row_count AS "rowCount",r.recorded_at AS "recordedAt",
+COALESCE((SELECT count(*)=r.row_count AND sum(d.net_minor)=r.provider_minor
+  AND bool_and(d.provider_status='settled') AND bool_and(d.currency=r.currency)
+  FROM music_distributor_rows d WHERE d.label_id=r.label_id AND d.source=r.source
+    AND d.provider_settlement_id=r.provider_settlement_id),false) AS "currentSourceMatch"
+FROM music_distributor_reconciliations r WHERE r.label_id=ANY($1::text[])
+AND ($2::text IS NULL OR r.source=$2)
+ORDER BY r.recorded_at DESC,r.provider_settlement_id DESC LIMIT $3`,[labelIds,source,limit])).rows;
     },
     async distributorRows({labelIds,source=null,limit=100}) {
       requireThat(Array.isArray(labelIds),'Distributor rows require an explicit label scope');

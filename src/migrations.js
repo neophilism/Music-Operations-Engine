@@ -108,6 +108,19 @@ export const migrations = [
       FOREIGN KEY(label_id,track_id) REFERENCES music_catalog(label_id,id)
     );
     CREATE INDEX music_distributor_rows_scope ON music_distributor_rows(label_id,source,occurred_at,id);
+  `},
+
+  {version:7,sql:`
+    CREATE TABLE music_distributor_reconciliations (
+      label_id text NOT NULL REFERENCES music_labels(id),source text NOT NULL,provider_settlement_id text NOT NULL,
+      currency char(3) NOT NULL,provider_minor bigint NOT NULL,invoice_id text NOT NULL,
+      invoice_minor bigint NOT NULL,bank_transaction_id text NOT NULL,bank_minor bigint NOT NULL,
+      row_count integer NOT NULL CHECK(row_count>0),recorded_by text NOT NULL,
+      recorded_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY(label_id,source,provider_settlement_id),
+      UNIQUE(label_id,bank_transaction_id),
+      UNIQUE(label_id,invoice_id)
+    );
   `}
 ];
 

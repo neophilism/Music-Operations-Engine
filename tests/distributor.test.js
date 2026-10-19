@@ -64,3 +64,29 @@ test('unmapped ISRC rolls back whole statement, including any preceding valid ro
 test('amount outside persisted bigint range fails before any write',()=>{
   assert.throws(()=>parse(csv().replace('1.25','92233720368547758.08')),/64-bit/);
 });
+
+test('operator-recorded settlement amount match stays separate from bank verification',async t=>{
+  const f=await fixture();t.after(()=>f.close());await labels(f.store);
+  await f.store.putCatalog({labelId:'alpha',id:'artist',kind:'artist',name:'Artist'});
+  await f.store.putCatalog({labelId:'alpha',id:'release',kind:'release',name:'Release',artistId:'artist'});
+  await f.store.putCatalog({labelId:'alpha',id:'track',kind:'track',name:'Track',artistId:'artist',releaseId:'release',isrc:'USABC1234567'});
+  const api=await serve(f.store);t.after(()=>api.close());
+  const statement={labelId:'alpha',source:'toolost_export',statementId:'first',csv:csv('settled','1.15','settle_1'),mapping};
+  assert.equal((await api.request('/v1/distributor/statements',{key:secrets.alpha,body:statement})).status,200);
+  const match={labelId:'alpha',source:'toolost_export',settlementId:'settle_1',invoiceId:'invoice_1',
+    invoiceMinor:'115',bankTransactionId:'bank_1',bankMinor:'115'};
+  assert.equal((await api.request('/v1/distributor/reconciliations',{key:secrets.alpha,body:match})).status,403);
+  assert.equal((await api.request('/v1/distributor/reconciliations',{body:{...match,invoiceMinor:'114'}})).status,422);
+  const recorded=await api.request('/v1/distributor/reconciliations',{body:match});
+  assert.equal(recorded.status,200);
+  assert.equal(recorded.body.reconciliation.evidenceStatus,'operator_recorded_amount_match');
+  assert.equal(recorded.body.reconciliation.providerMinor,'115');
+  assert.equal((await api.request('/v1/distributor/reconciliations',{body:match})).body.reconciliation.duplicate,true);
+  assert.equal((await api.request('/v1/distributor/reconciliations',{body:{...match,invoiceId:'different'}})).status,409);
+  const listed=await api.request('/v1/distributor/reconciliations?labelId=alpha',{key:secrets.alpha});
+  assert.equal(listed.status,200);assert.equal(listed.body.reconciliations[0].currentSourceMatch,true);
+  assert.equal((await api.request('/v1/distributor/reconciliations?labelId=beta',{key:secrets.alpha})).status,403);
+  const second={...statement,statementId:'second',csv:csv('settled','1.15','settle_2').replace('a1,','a2,')};
+  assert.equal((await api.request('/v1/distributor/statements',{key:secrets.alpha,body:second})).status,200);
+  assert.equal((await api.request('/v1/distributor/reconciliations',{body:{...match,settlementId:'settle_2',invoiceId:'invoice_2'}})).status,409);
+});
