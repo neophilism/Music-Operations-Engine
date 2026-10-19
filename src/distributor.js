@@ -4,19 +4,19 @@ import {requireThat} from './errors.js';
 import {identifier} from './validation.js';
 
 const allowedStatuses=new Set(['reported','pending','settled','reversed']);
-// This importer currently has a fixed two-decimal amount format. Fail closed for
-// currencies whose ISO 4217 minor-unit exponent has not been implemented here.
-const twoDecimalCurrencies=new Set(['USD','EUR','GBP']);
+// Explicit verified minor-unit exponents; unknown codes fail closed.
+const currencyExponent=new Map([['USD',2],['EUR',2],['GBP',2],['JPY',0],['KWD',3]]);
 function nonempty(value,name,max=256) {
   requireThat(typeof value==='string' && value.trim().length>0 && value.trim().length<=max,name+' is required');
   return value.trim();
 }
-function cents(raw,name) {
+function minorUnits(raw,name,exponent) {
   const value=nonempty(String(raw ?? ''),name,64);
-  requireThat(/^-?(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(value),name+' requires a decimal amount with at most two fraction digits');
+  requireThat(/^-?(?:0|[1-9]\d*)(?:\.\d+)?$/.test(value) &&
+    (value.split('.')[1] || '').length<=exponent,name+' has unsupported currency precision');
   const negative=value.startsWith('-');
   const [whole,fraction='']=value.replace(/^-/, '').split('.');
-  const result=BigInt(whole)*100n+BigInt(fraction.padEnd(2,'0'));
+  const result=BigInt(whole)*10n**BigInt(exponent)+BigInt(fraction.padEnd(exponent,'0') || '0');
   requireThat(result<=9223372036854775807n,name+' exceeds supported 64-bit minor-unit range');
   return (negative ? -result : result).toString();
 }
@@ -47,12 +47,13 @@ export function parseDistributorStatement(csv,{labelId,source='distributor_csv',
     const isrc=nonempty(row[mapping.isrc],'ISRC',12).toUpperCase();
     requireThat(/^[A-Z]{2}[A-Z0-9]{3}\d{7}$/.test(isrc),'invalid ISRC');
     const currency=nonempty(row[mapping.currency],'currency',3).toUpperCase();
-    requireThat(twoDecimalCurrencies.has(currency),'unsupported currency minor-unit exponent');
+    const exponent=currencyExponent.get(currency);
+    requireThat(exponent!==undefined,'unsupported currency minor-unit exponent');
     const payoutStatus=nonempty(row[mapping.payoutStatus],'payoutStatus',20).toLowerCase();
     requireThat(allowedStatuses.has(payoutStatus),'unsupported payout status');
-    const grossMinor=BigInt(cents(row[mapping.gross],'gross'));
-    const feesMinor=BigInt(cents(row[mapping.fees],'fees'));
-    const netMinor=BigInt(cents(row[mapping.net],'net'));
+    const grossMinor=BigInt(minorUnits(row[mapping.gross],'gross',exponent));
+    const feesMinor=BigInt(minorUnits(row[mapping.fees],'fees',exponent));
+    const netMinor=BigInt(minorUnits(row[mapping.net],'net',exponent));
     requireThat(grossMinor-feesMinor===netMinor,'gross minus fees must equal net');
     const reversesExternalId=mapping.reversesExternalId ? String(row[mapping.reversesExternalId]??'').trim() : '';
     requireThat(payoutStatus==='reversed' ? reversesExternalId.length>0 : reversesExternalId.length===0,

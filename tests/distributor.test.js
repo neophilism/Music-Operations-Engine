@@ -15,11 +15,16 @@ test('invalid dates and duplicate transaction IDs rejected',()=>{
  assert.throws(()=>parse(csv().replace('2026-10-01','2026-02-30')));
  assert.throws(()=>parse(csv()+csv().split('\n')[1]+'\n'));
 });
-test('currencies without an implemented two-decimal minor unit fail closed',()=>{
- for(const currency of ['JPY','KWD','XYZ'])
-  assert.throws(()=>parse(csv().replace(',USD,',','+currency+',')),/unsupported currency minor-unit exponent/);
+test('currency minor-unit exponents are exact and unknown codes fail closed',()=>{
+ assert.throws(()=>parse(csv().replace(',USD,',',XYZ,')),/unsupported currency minor-unit exponent/);
  for(const currency of ['EUR','GBP'])
   assert.equal(parse(csv().replace(',USD,',','+currency+','))[0].currency,currency);
+ const yen=csv().replace(',USD,1.25,0.10,1.15',',JPY,125,10,115');
+ assert.equal(parse(yen)[0].netMinor,'115');
+ assert.throws(()=>parse(yen.replace(',JPY,125',',JPY,125.0')),/precision/);
+ const dinar=csv().replace(',USD,1.25,0.10,1.15',',KWD,1.250,0.100,1.150');
+ assert.equal(parse(dinar)[0].netMinor,'1150');
+ assert.throws(()=>parse(dinar.replace('1.250','1.2500')),/precision/);
 });
 test('invalid money precision rejected',()=>assert.throws(()=>parse(csv().replace('1.25','1.256'))));
 test('no silent assumed column mapping',()=>assert.throws(()=>parseDistributorStatement(csv(),{labelId:'label_one'})));
