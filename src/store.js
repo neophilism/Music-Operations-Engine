@@ -2,9 +2,10 @@ import pg from 'pg';
 import {migrate} from './migrations.js';
 import {normalizeLabel,normalizeFamily,normalizeCatalog} from './catalog.js';
 import {ApiError,requireThat} from './errors.js';
-import {exact} from './validation.js';
+import {exact,identifier} from './validation.js';
+import {parseDistributorStatement} from './distributor.js';
 import {issueBearer,normalizeAccount,passwordDigest,passwordMatches,principalFromAccount,tokenDigest} from './accounts.js';
-import {randomUUID} from 'node:crypto';
+import {createHash,randomUUID} from 'node:crypto';
 import {jobLeaseMs,normalizeJob,normalizeFailure} from './jobs.js';
 import {decryptConnectorCredential,encryptConnectorCredential,normalizeBackfillCursor,normalizeConnector} from './connectors.js';
 
@@ -66,6 +67,57 @@ artist_id=EXCLUDED.artist_id,release_id=EXCLUDED.release_id,track_id=EXCLUDED.tr
     }
   }
   return {
+    async importDistributorStatement({csv,labelId,source,statementId,mapping},actor='system') {
+      labelId=identifier(labelId,'labelId');
+      source=identifier(source,'source');
+      statementId=identifier(statementId,'statementId');
+      const rows=parseDistributorStatement(csv,{labelId,source,mapping});
+      const contentHash=createHash('sha256').update(JSON.stringify(rows)).digest('hex');
+      return transaction(async c=>{
+        const reserved=await c.query(`INSERT INTO music_distributor_statements(label_id,source,statement_id,content_hash,row_count)
+VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING RETURNING statement_id`,
+          [labelId,source,statementId,contentHash,rows.length]);
+        if (!reserved.rows.length) {
+          const previous=(await c.query('SELECT content_hash FROM music_distributor_statements WHERE label_id=$1 AND source=$2 AND statement_id=$3',
+            [labelId,source,statementId])).rows[0];
+          requireThat(previous?.content_hash===contentHash,'Statement id was reused with different content',409);
+          return {statementId,accepted:0,duplicates:rows.length,duplicateStatement:true};
+        }
+        let accepted=0;
+        for(const row of rows) {
+          const matches=(await c.query(`SELECT id,artist_id AS "artistId",release_id AS "releaseId"
+FROM music_catalog WHERE label_id=$1 AND kind='track' AND isrc=$2`,[labelId,row.isrc])).rows;
+          requireThat(matches.length===1,'ISRC must resolve to exactly one track in the statement label',422);
+          const track=matches[0];
+          const rowHash=createHash('sha256').update(JSON.stringify(row)).digest('hex');
+          const saved=await c.query(`INSERT INTO music_distributor_rows
+(id,label_id,source,external_id,statement_id,isrc,artist_id,release_id,track_id,occurred_at,currency,
+ gross_minor,fees_minor,net_minor,provider_status,provider_settlement_id,row_hash)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+ON CONFLICT(label_id,source,external_id) DO NOTHING RETURNING id`,
+            [row.id,labelId,source,row.externalId,statementId,row.isrc,track.artistId,track.releaseId,track.id,
+              row.occurredAt,row.currency,row.grossMinor,row.feesMinor,row.netMinor,row.payoutStatus,row.settlementId,rowHash]);
+          if(saved.rows.length) accepted++;
+          else {
+            const previous=(await c.query('SELECT row_hash FROM music_distributor_rows WHERE label_id=$1 AND source=$2 AND external_id=$3',
+              [labelId,source,row.externalId])).rows[0];
+            requireThat(previous?.row_hash===rowHash,'Distributor transaction id was reused with different content',409);
+          }
+        }
+        await audit(c,actor,'distributor.statement.imported',[labelId],{source,statementId,accepted,duplicates:rows.length-accepted});
+        return {statementId,accepted,duplicates:rows.length-accepted,duplicateStatement:false};
+      });
+    },
+    async distributorRows({labelIds,source=null,limit=100}) {
+      requireThat(Array.isArray(labelIds),'Distributor rows require an explicit label scope');
+      requireThat(Number.isInteger(limit) && limit>=1 && limit<=1000,'limit must be 1–1000',400);
+      return (await pool.query(`SELECT id,label_id AS "labelId",source,external_id AS "externalId",statement_id AS "statementId",
+isrc,artist_id AS "artistId",release_id AS "releaseId",track_id AS "trackId",occurred_at AS "occurredAt",
+currency,gross_minor::text AS "grossMinor",fees_minor::text AS "feesMinor",net_minor::text AS "netMinor",
+provider_status AS "providerStatus",provider_settlement_id AS "providerSettlementId",imported_at AS "importedAt"
+FROM music_distributor_rows WHERE label_id=ANY($1::text[]) AND ($2::text IS NULL OR source=$2)
+ORDER BY imported_at DESC,id DESC LIMIT $3`,[labelIds,source,limit])).rows;
+    },
     async putConnector(raw,actor='system') {
       const connector=normalizeConnector(raw);
       return transaction(async c=>{

@@ -85,6 +85,29 @@ export const migrations = [
       FOREIGN KEY(label_id,source) REFERENCES music_connectors(label_id,source) ON DELETE CASCADE
     );
     CREATE INDEX music_connectors_source ON music_connectors(source,label_id);
+  `},
+
+  {version:6,sql:`
+    CREATE TABLE music_distributor_statements (
+      label_id text NOT NULL REFERENCES music_labels(id),source text NOT NULL,statement_id text NOT NULL,
+      content_hash char(64) NOT NULL,row_count integer NOT NULL CHECK(row_count>=0),
+      imported_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(label_id,source,statement_id)
+    );
+    CREATE TABLE music_distributor_rows (
+      id char(64) PRIMARY KEY,label_id text NOT NULL REFERENCES music_labels(id),source text NOT NULL,
+      external_id text NOT NULL,statement_id text NOT NULL,isrc char(12) NOT NULL,
+      artist_id text NOT NULL,release_id text NOT NULL,track_id text NOT NULL,
+      occurred_at date NOT NULL,currency char(3) NOT NULL,
+      gross_minor bigint NOT NULL,fees_minor bigint NOT NULL,net_minor bigint NOT NULL,
+      provider_status text NOT NULL CHECK(provider_status IN ('reported','pending','settled','reversed')),
+      provider_settlement_id text,row_hash char(64) NOT NULL,imported_at timestamptz NOT NULL DEFAULT now(),
+      UNIQUE(label_id,source,external_id),
+      FOREIGN KEY(label_id,source,statement_id) REFERENCES music_distributor_statements(label_id,source,statement_id),
+      FOREIGN KEY(label_id,artist_id) REFERENCES music_catalog(label_id,id),
+      FOREIGN KEY(label_id,release_id) REFERENCES music_catalog(label_id,id),
+      FOREIGN KEY(label_id,track_id) REFERENCES music_catalog(label_id,id)
+    );
+    CREATE INDEX music_distributor_rows_scope ON music_distributor_rows(label_id,source,occurred_at,id);
   `}
 ];
 

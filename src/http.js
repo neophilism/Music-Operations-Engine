@@ -71,6 +71,17 @@ export function handler(store,{credentials=loadCredentials(),webhookSecrets=load
             status:source ? 'data-received' : 'awaiting-producer',records:source?.records || 0,lastIngestedAt:source?.lastIngestedAt || null,latestEventAt:source?.latestEventAt || null};
         })});
       }
+      if (req.method === 'POST' && url.pathname === '/v1/distributor/statements') {
+        permit(principal,'ingest');const {data}=await readBody(req);
+        permitLabel(principal,data.labelId);permitSource(principal,data.source);
+        return respond(200,{import:await store.importDistributorStatement(data,principal.id)});
+      }
+      if (req.method === 'GET' && url.pathname === '/v1/distributor/rows') {
+        permit(principal,'read');const filter=await reportFilter(url.searchParams,principal,store);
+        const limit=url.searchParams.has('limit') ? Number(url.searchParams.get('limit')) : 100;
+        requireThat(!url.searchParams.has('limit') || /^\d+$/.test(url.searchParams.get('limit')),'limit must be an integer',400);
+        return respond(200,{rows:await store.distributorRows({labelIds:filter.labelIds,source:filter.sources?.[0]||null,limit}),scope:{labelIds:filter.labelIds}});
+      }
       if (req.method === 'POST' && url.pathname === '/v1/jobs') {
         permit(principal,'ingest');const {data}=await readBody(req);
         permitLabel(principal,data.labelId);permitSource(principal,data.source);

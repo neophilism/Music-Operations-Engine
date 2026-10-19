@@ -17,6 +17,7 @@ function cents(raw,name) {
   const negative=value.startsWith('-');
   const [whole,fraction='']=value.replace(/^-/, '').split('.');
   const result=BigInt(whole)*100n+BigInt(fraction.padEnd(2,'0'));
+  requireThat(result<=9223372036854775807n,name+' exceeds supported 64-bit minor-unit range');
   return (negative ? -result : result).toString();
 }
 function date(raw,name) {
@@ -54,6 +55,7 @@ export function parseDistributorStatement(csv,{labelId,source='distributor_csv',
     const netMinor=BigInt(cents(row[mapping.net],'net'));
     requireThat(grossMinor-feesMinor===netMinor,'gross minus fees must equal net');
     const settlementId=mapping.settlementId ? String(row[mapping.settlementId]??'').trim() : '';
+    requireThat(settlementId.length<=256,'settlement reference is too long');
     requireThat(payoutStatus!=='settled'||settlementId.length>0,'settled row requires settlement reference');
     const id=createHash('sha256').update([labelId,source,externalId].join('\0')).digest('hex');
     return {id,labelId,source,externalId,isrc,occurredAt:date(row[mapping.occurredAt],'occurredAt'),
