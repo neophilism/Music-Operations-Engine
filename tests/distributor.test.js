@@ -174,3 +174,26 @@ test('optional provider UPC must match the release linked to the ISRC',async t=>
   assert.equal((await api.request('/v1/distributor/statements',{key:secrets.alpha,body:malformed})).status,422);
   assert.equal((await api.request('/v1/distributor/rows?labelId=alpha',{key:secrets.alpha})).body.rows.length,1);
 });
+
+
+test('full reversal must negate gross and fees as well as net, with atomic rollback',async t=>{
+  const f=await fixture();t.after(()=>f.close());await labels(f.store);
+  await f.store.putCatalog({labelId:'alpha',id:'artist',kind:'artist',name:'Artist'});
+  await f.store.putCatalog({labelId:'alpha',id:'release',kind:'release',name:'Release',artistId:'artist'});
+  await f.store.putCatalog({labelId:'alpha',id:'track',kind:'track',name:'Track',artistId:'artist',releaseId:'release',isrc:'USABC1234567'});
+  const original={labelId:'alpha',source:'toolost_export',statementId:'original',csv:csv(),mapping};
+  await f.store.importDistributorStatement(original);
+  const header='Transaction,Date,ISRC,Currency,Gross,Fees,Net,Status,Settlement,Reverses\n';
+  // Net is correct and gross-fees=net, but these do not reverse the original components.
+  for(const [gross,fees] of [['-2.25','-1.10'],['-1.15','0.00']]) {
+    const bad={...original,statementId:'bad-reversal',mapping:{...mapping,reversesExternalId:'Reverses'},
+      csv:header+'fresh,2026-10-02,USABC1234567,USD,1.25,0.10,1.15,pending,,\n'
+        +`rev,2026-10-02,USABC1234567,USD,${gross},${fees},-1.15,reversed,,a1\n`};
+    await assert.rejects(f.store.importDistributorStatement(bad),/Reversal must exactly negate/);
+    assert.equal((await f.store.distributorRows({labelIds:['alpha']})).length,1);
+    assert.equal((await f.pool.query('SELECT count(*)::integer AS count FROM music_distributor_statements')).rows[0].count,1);
+  }
+  const good={...original,statementId:'valid-reversal',mapping:{...mapping,reversesExternalId:'Reverses'},
+    csv:header+'rev,2026-10-02,USABC1234567,USD,-1.25,-0.10,-1.15,reversed,,a1\n'};
+  assert.equal((await f.store.importDistributorStatement(good)).accepted,1);
+});

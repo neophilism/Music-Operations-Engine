@@ -58,7 +58,7 @@ export async function createStore(pool,{connectorKey}={}) {
         requireThat((!f.releaseId || track.releaseId === f.releaseId) && (!f.artistId || track.artistId === f.artistId),'Track attribution does not match its catalog');
       }
       await client.query(`INSERT INTO music_facts(id,label_id,source,external_id,type,occurred_at,quantity,amount_minor,currency,artist,release_title,track,channel,territory,artist_id,release_id,track_id,metadata)
-VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
 ON CONFLICT(label_id,source,external_id) DO UPDATE SET type=EXCLUDED.type,occurred_at=EXCLUDED.occurred_at,
 quantity=EXCLUDED.quantity,amount_minor=EXCLUDED.amount_minor,currency=EXCLUDED.currency,artist=EXCLUDED.artist,
 release_title=EXCLUDED.release_title,track=EXCLUDED.track,channel=EXCLUDED.channel,territory=EXCLUDED.territory,
@@ -108,11 +108,13 @@ ON CONFLICT(label_id,source,external_id) DO NOTHING RETURNING id`,
           }
         }
         for(const row of rows.filter(r=>r.reversesExternalId)) {
-          const original=(await c.query(`SELECT isrc,currency,net_minor::text AS "netMinor",provider_status AS "providerStatus"
+          const original=(await c.query(`SELECT isrc,currency,gross_minor::text AS "grossMinor",fees_minor::text AS "feesMinor",net_minor::text AS "netMinor",provider_status AS "providerStatus"
 FROM music_distributor_rows WHERE label_id=$1 AND source=$2 AND external_id=$3 FOR UPDATE`,
             [labelId,source,row.reversesExternalId])).rows[0];
           requireThat(original && original.providerStatus!=='reversed' && original.isrc===row.isrc
             && original.currency===row.currency && BigInt(original.netMinor)>0n
+            && BigInt(row.grossMinor)===-BigInt(original.grossMinor)
+            && BigInt(row.feesMinor)===-BigInt(original.feesMinor)
             && BigInt(row.netMinor)===-BigInt(original.netMinor),
             'Reversal must exactly negate an existing non-reversal transaction for the same track and currency',422);
         }
