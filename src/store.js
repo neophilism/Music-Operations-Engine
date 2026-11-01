@@ -175,7 +175,7 @@ FROM music_distributor_reconciliations WHERE label_id=$1 AND source=$2 AND provi
           rowCount:sourceRows.length,duplicate:!saved.rows.length,evidenceStatus:'operator_recorded_amount_match'};
       });
     },
-    async distributorReconciliations({labelIds,source=null,limit=100}) {
+    async distributorReconciliations({labelIds,source=null,sources=source===null ? null : [source],limit=100}) {
       requireThat(Array.isArray(labelIds),'Reconciliations require an explicit label scope');
       requireThat(Number.isInteger(limit) && limit>=1 && limit<=1000,'limit must be 1–1000',400);
       return (await pool.query(`SELECT r.label_id AS "labelId",r.source,r.provider_settlement_id AS "settlementId",
@@ -193,10 +193,10 @@ AND NOT EXISTS (SELECT 1 FROM music_distributor_rows reversal JOIN music_distrib
   WHERE original.label_id=r.label_id AND original.source=r.source
   AND original.provider_settlement_id=r.provider_settlement_id) AS "currentSourceMatch"
 FROM music_distributor_reconciliations r WHERE r.label_id=ANY($1::text[])
-AND ($2::text IS NULL OR r.source=$2)
-ORDER BY r.recorded_at DESC,r.provider_settlement_id DESC LIMIT $3`,[labelIds,source,limit])).rows;
+AND ($2::text[] IS NULL OR r.source=ANY($2))
+ORDER BY r.recorded_at DESC,r.provider_settlement_id DESC LIMIT $3`,[labelIds,sources,limit])).rows;
     },
-    async distributorRows({labelIds,source=null,limit=100}) {
+    async distributorRows({labelIds,source=null,sources=source===null ? null : [source],limit=100}) {
       requireThat(Array.isArray(labelIds),'Distributor rows require an explicit label scope');
       requireThat(Number.isInteger(limit) && limit>=1 && limit<=1000,'limit must be 1–1000',400);
       return (await pool.query(`SELECT id,label_id AS "labelId",source,external_id AS "externalId",statement_id AS "statementId",
@@ -205,8 +205,8 @@ currency,gross_minor::text AS "grossMinor",fees_minor::text AS "feesMinor",net_m
 provider_status AS "providerStatus",provider_settlement_id AS "providerSettlementId",
 reverses_external_id AS "reversesExternalId",imported_at AS "importedAt",
 'imported_csv' AS provenance,false AS "isLive",false AS "bankVerified"
-FROM music_distributor_rows WHERE label_id=ANY($1::text[]) AND ($2::text IS NULL OR source=$2)
-ORDER BY imported_at DESC,id DESC LIMIT $3`,[labelIds,source,limit])).rows;
+FROM music_distributor_rows WHERE label_id=ANY($1::text[]) AND ($2::text[] IS NULL OR source=ANY($2))
+ORDER BY imported_at DESC,id DESC LIMIT $3`,[labelIds,sources,limit])).rows;
     },
     async putConnector(raw,actor='system') {
       const connector=normalizeConnector(raw);
@@ -314,8 +314,8 @@ WHERE id=$1 AND locked_by=$2 AND status='running'`,[jobId,workerId,status,failur
       requireThat(Number.isInteger(limit) && limit>=1 && limit<=1000,'limit must be 1–1000',400);
       const result=await pool.query(`SELECT id,kind,source,label_id AS "labelId",status,attempts,max_attempts AS "maxAttempts",
 available_at AS "availableAt",locked_at AS "lockedAt",last_error_code AS "lastErrorCode",created_at AS "createdAt",updated_at AS "updatedAt",completed_at AS "completedAt"
-FROM music_jobs WHERE ($1::text[] IS NULL OR label_id=ANY($1)) AND ($2::text IS NULL OR source=$2)
-ORDER BY created_at DESC,id DESC LIMIT $3`,[labelIds,source,limit]);
+FROM music_jobs WHERE ($1::text[] IS NULL OR label_id=ANY($1)) AND ($2::text[] IS NULL OR source=ANY($2))
+ORDER BY created_at DESC,id DESC LIMIT $3`,[labelIds,sources,limit]);
       return result.rows;
     },
     async sourceHealth({labelIds,sources=null}) {

@@ -197,3 +197,28 @@ test('full reversal must negate gross and fees as well as net, with atomic rollb
     csv:header+'rev,2026-10-02,USABC1234567,USD,-1.25,-0.10,-1.15,reversed,,a1\n'};
   assert.equal((await f.store.importDistributorStatement(good)).accepted,1);
 });
+
+
+test('distributor read APIs preserve every authorized source and explicit narrowing',async t=>{
+  const f=await fixture();t.after(()=>f.close());await labels(f.store);
+  await f.store.putCatalog({labelId:'alpha',id:'artist',kind:'artist',name:'Artist'});
+  await f.store.putCatalog({labelId:'alpha',id:'release',kind:'release',name:'Release',artistId:'artist'});
+  await f.store.putCatalog({labelId:'alpha',id:'track',kind:'track',name:'Track',artistId:'artist',releaseId:'release',isrc:'USABC1234567'});
+  for(const source of ['allowed_a','allowed_b','private_c']) {
+    await f.store.importDistributorStatement({labelId:'alpha',source,statementId:'one',mapping,csv:csv('settled','1.15','settle')});
+    await f.store.recordDistributorReconciliation({labelId:'alpha',source,settlementId:'settle',invoiceId:'invoice_'+source,invoiceMinor:'115',bankTransactionId:'bank_'+source,bankMinor:'115'});
+  }
+  const {loadCredentials}=await import('../src/auth.js');
+  const restricted=loadCredentials({ENGINE_CREDENTIALS:JSON.stringify([{id:'multi',key:secrets.reader,labels:['alpha'],permissions:['read'],sources:['allowed_a','allowed_b']}])});
+  const api=await serve(f.store,{credentials:restricted});t.after(()=>api.close());
+  for(const [route,key] of [['rows','rows'],['reconciliations','reconciliations']]) {
+    const all=await api.request('/v1/distributor/'+route+'?labelId=alpha',{key:secrets.reader});
+    assert.equal(all.status,200);
+    assert.deepEqual(all.body[key].map(r=>r.source).sort(),['allowed_a','allowed_b']);
+    const narrow=await api.request('/v1/distributor/'+route+'?labelId=alpha&source=allowed_b',{key:secrets.reader});
+    assert.deepEqual(narrow.body[key].map(r=>r.source),['allowed_b']);
+    assert.equal((await api.request('/v1/distributor/'+route+'?labelId=alpha&source=private_c',{key:secrets.reader})).status,403);
+  }
+  assert.deepEqual(await f.store.distributorRows({labelIds:['alpha'],sources:[]}),[]);
+  assert.deepEqual(await f.store.distributorReconciliations({labelIds:['alpha'],sources:[]}),[]);
+});
