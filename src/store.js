@@ -314,8 +314,8 @@ WHERE id=$1 AND locked_by=$2 AND status='running'`,[jobId,workerId,status,failur
       requireThat(Number.isInteger(limit) && limit>=1 && limit<=1000,'limit must be 1–1000',400);
       const result=await pool.query(`SELECT id,kind,source,label_id AS "labelId",status,attempts,max_attempts AS "maxAttempts",
 available_at AS "availableAt",locked_at AS "lockedAt",last_error_code AS "lastErrorCode",created_at AS "createdAt",updated_at AS "updatedAt",completed_at AS "completedAt"
-FROM music_jobs WHERE ($1::text[] IS NULL OR label_id=ANY($1)) AND ($2::text[] IS NULL OR source=ANY($2))
-ORDER BY created_at DESC,id DESC LIMIT $3`,[labelIds,sources,limit]);
+FROM music_jobs WHERE ($1::text[] IS NULL OR label_id=ANY($1)) AND ($2::text IS NULL OR source=$2)
+ORDER BY created_at DESC,id DESC LIMIT $3`,[labelIds,source,limit]);
       return result.rows;
     },
     async sourceHealth({labelIds,sources=null}) {
