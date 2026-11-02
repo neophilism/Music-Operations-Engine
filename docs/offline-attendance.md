@@ -15,3 +15,25 @@ QR attribution, consent and retention, out-of-order/failure retry, and the
 full acceptance criteria remain pending.
 
 Check: `node --test tests/event-attendance.test.js`.
+
+
+## Durable aggregate API (MOE-007, implementation in progress)
+
+`POST /v1/attendance` requires authenticated `ingest`, the exact report label and
+`manual-attendance` source access. Only the six documented aggregate fields are
+accepted. `GET /v1/attendance?labelId=...` requires `read` and the same label/source
+scope; optional event/session filters and a bounded limit never widen access.
+
+Migration 6 stores immutable manual delta reports and a transactional audit entry.
+An identical receipt retry returns its original report; changed content returns
+409. Concurrent inserts converge without overwriting counts. Event time orders
+late arrivals independently of receive time. Counts are returned as decimal strings.
+The store repeats authorization checks for direct callers. Customer identities,
+raw ticket/QR payloads and caller assertions of provider verification are rejected.
+These reports are manual attestations, are not added to provider measurements, and
+never imply a live ticketing feed. Aggregate reads use `no-store` responses.
+
+Focused tests cover persistence across store recreation, concurrency, conflicts,
+audit-outage rollback/retry, wrong label/source/permission, malformed input and
+out-of-order delivery. Event/venue integration, QR campaign attribution, retention
+and approved provider mappings remain unfinished; PR12 remains draft.
