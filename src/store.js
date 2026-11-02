@@ -1,3 +1,4 @@
+import {attendanceStore} from './attendance-store.js';
 import pg from 'pg';
 import {migrate} from './migrations.js';
 import {normalizeLabel,normalizeFamily,normalizeCatalog} from './catalog.js';
@@ -66,6 +67,7 @@ artist_id=EXCLUDED.artist_id,release_id=EXCLUDED.release_id,track_id=EXCLUDED.tr
     }
   }
   return {
+    ...attendanceStore(pool,transaction),
     async putConnector(raw,actor='system') {
       const connector=normalizeConnector(raw);
       return transaction(async c=>{
@@ -382,3 +384,4 @@ GROUP BY source ORDER BY source`,[labelIds,sources,from,to]);
     async close() { await pool.end(); }
   };
 }
+

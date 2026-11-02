@@ -53,6 +53,26 @@ export function handler(store,{credentials=loadCredentials(),webhookSecrets=load
         return respond(200,{token:session.token,tokenType:'Bearer',expiresAt:session.expiresAt});
       }
       const principal=await authenticateRequest(req,credentials,store);
+      if (url.pathname === '/v1/attendance') {
+        if (req.method === 'POST') {
+          permit(principal,'ingest');
+          const {data}=await readBody(req);
+          const result=await store.recordAttendance(data,principal);
+          return respond(result.duplicate ? 200 : 201,result);
+        }
+        if (req.method === 'GET') {
+          permit(principal,'read');
+          const allowed=['labelId','eventId','sessionId','limit'];
+          for (const key of url.searchParams.keys()) requireThat(allowed.includes(key)&&url.searchParams.getAll(key).length===1,'Invalid attendance query',400);
+          requireThat(!url.searchParams.has('limit') || /^\d+$/.test(url.searchParams.get('limit')),'limit must be an integer',400);
+          return respond(200,{reports:await store.attendanceReports({
+            labelId:url.searchParams.get('labelId'),eventId:url.searchParams.get('eventId')??undefined,
+            sessionId:url.searchParams.get('sessionId')??undefined,
+            limit:url.searchParams.has('limit') ? Number(url.searchParams.get('limit')) : 100
+          },principal)});
+        }
+        return respond(405,{error:'Method not allowed'});
+      }
       if (req.method === 'POST' && url.pathname === '/v1/auth/revoke') {
         requireThat(principal.sessionId,'Only an interactive session can revoke itself',400);
         await store.revokeSession(principal.sessionId,principal.id);
@@ -162,3 +182,4 @@ export function handler(store,{credentials=loadCredentials(),webhookSecrets=load
     }
   };
 }
+

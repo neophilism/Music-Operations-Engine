@@ -85,6 +85,16 @@ export const migrations = [
       FOREIGN KEY(label_id,source) REFERENCES music_connectors(label_id,source) ON DELETE CASCADE
     );
     CREATE INDEX music_connectors_source ON music_connectors(source,label_id);
+  `},
+  {version:6,sql:`
+    CREATE TABLE music_attendance_reports (
+      id char(64) PRIMARY KEY,content_hash char(64) NOT NULL,
+      label_id text NOT NULL REFERENCES music_labels(id),event_id text NOT NULL,session_id text NOT NULL,
+      source_receipt_id text NOT NULL,occurred_at timestamptz NOT NULL,
+      attendee_count bigint NOT NULL CHECK(attendee_count>0),received_at timestamptz NOT NULL DEFAULT now(),
+      UNIQUE(label_id,event_id,session_id,source_receipt_id)
+    );
+    CREATE INDEX music_attendance_scope ON music_attendance_reports(label_id,event_id,session_id,occurred_at,id);
   `}
 ];
 
@@ -105,3 +115,4 @@ export async function migrate(pool) {
   } catch(error) { await client.query('ROLLBACK'); throw error; }
   finally { client.release(); }
 }
+
